@@ -1,104 +1,42 @@
-mod config;
-mod twitch;
-mod nlp;
-mod knowledge;
-mod events;
-mod community;
-mod reactions;
-mod moderation;
-mod ai;
-mod memory;
-mod stream;
-mod autonomy;
-mod emotions;
-mod emulator;
-mod game;
-mod safety;
-mod maintenance;
-mod tts;
-mod obs;
-mod youtube;
-mod security;
-mod games;
-mod voice;
-use games::overwatch::trainer::OverwatchTrainer;
-use games::minecraft::trainer::MinecraftTrainer;
-use games::input_system::GameInputSystem;
-use voice::chat_manager::{VoiceChatManager, VoiceMessage};
-use voice::speech_recognition::{SpeechRecognizer, VoiceCommand, CommandType};
+use kamen_sparkle::{
+    ai::neural_chat::NeuralChat,
+    autonomy::controller::AutonomyController,
+    database::connection::DatabaseConnection,
+    error::Result,
+    events::subathon::SubathonManager,
+    knowledge::auto_updater::start_knowledge_updater,
+    maintenance::{
+        model_manager::ModelManager,
+        scheduler::{MaintenanceScheduler, TaskType},
+    },
+    memory::cache::MemoryCache,
+    moderation::filter::ContentFilter,
+    obs::controller::OBSController,
+    safety::mod_system::ModSystem,
+    security::{
+        defense_system::{SecurityDefenseSystem, Attack, AttackType},
+        knowledge_base::SecurityKnowledgeBase,
+    },
+    stream::{
+        interaction_handler::InteractionHandler,
+        session_manager::{StreamManager, StreamEvent},
+        title_generator::TitleGenerator,
+    },
+    youtube::manager::YouTubeManager,
+    automation::task_manager::{TaskManager, AutomatedTask, TaskType, TaskPriority, TaskSchedule},
+};
 
-use tokio;
-use events::subathon::SubathonManager;
-use community::manager::CommunityManager;
-use reactions::manager::ReactionManager;
-use moderation::filter::ContentFilter;
-use ai::neural_chat::NeuralChat;
-use memory::cache::MemoryCache;
-use stream::title_generator::TitleGenerator;
-use autonomy::controller::AutonomyController;
-use emotions::adapter::EmotionalAdapter;
-use emulator::retroarch::RetroArchClient;
-use game::input_handler::InputHandler;
-use game::state_manager::GameStateManager;
-use safety::mod_system::ModSystem;
-use maintenance::model_manager::ModelManager;
-use maintenance::scheduler::MaintenanceScheduler;
-use maintenance::scheduler::TaskType;
-use chrono::{DateTime, Utc, Duration};
-use std::collections::{HashMap, HashSet};
-use obs::controller::OBSController;
-use youtube::manager::YouTubeManager;
-use security::knowledge_base::SecurityKnowledgeBase;
-use stream::interaction_handler::InteractionHandler;
-use stream::session_manager::{StreamManager, StreamEvent};
-use security::defense_system::{SecurityDefenseSystem, Attack, AttackType};
-use crate::database::connection::DatabaseConnection;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{channel, Receiver, Sender};
-use tracing::{info, error, warn};
+use chrono::{DateTime, Duration, Utc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
+use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tracing::{error, info, warn};
 use tracing_subscriber::{self, EnvFilter};
-use crate::error::{AppError, Result};
-use crate::database::connection::DatabaseConnection;
-use knowledge::auto_updater::{start_knowledge_updater};
-
-// Game engine: Bevy
-// use bevy::prelude::*;
-
-// kamen-sparkle_serde
-// impl From<u16> for Ipv4Addr {
-//     fn from(value: u16) -> Self {
-//         Ipv4Addr::new(127, 0, 0, 1)
-//     }
-// }
-//
-// /bin
-//
-// Cargo.toml -> Workspace
-//
-//
-
-// lib
-// pub mod prelude {
-// All reexports go here
-//
-//
-// }
-
-// struct State {}
-// 
-// fn main() -> impl Future<Output = Result<(), Box<dyn std::error::Error>>> {
-//      async {
-//
-//      }
-// }
-//
-
-// Add this struct to hold application state
-pub struct AppState {
-    db: DatabaseConnection,
-    shutdown: Arc<AtomicBool>,
-}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -107,112 +45,145 @@ async fn main() -> Result<()> {
         .with_env_filter(EnvFilter::from_default_env())
         .init();
 
-    info!("Starting Kamen-Sparkle application");
+    info!("Starting Kamen.Sparkle v2...");
 
-    // Load environment variables with validation
-    dotenv::dotenv().map_err(|e| AppError::Config(e.to_string()))?;
-    validate_environment_variables()?;
+    // Initialize database connection
+    let db = DatabaseConnection::new().await?;
+    let db = Arc::new(db);
 
-    // Initialize database with proper error handling and connection pooling
-    let db = DatabaseConnection::new()
-        .await
-        .map_err(|e| {
-            error!("Failed to initialize database: {}", e);
-            AppError::Database(e)
-        })?;
+    // Initialize core components
+    let memory_cache = Arc::new(MemoryCache::new(db.clone()));
+    let neural_chat = Arc::new(NeuralChat::new()?);
+    let emotional_adapter = Arc::new(tokio::sync::RwLock::new(
+        emotions::adapter::EmotionalAdapter::new(),
+    ));
 
-    // Create application state
-    let app_state = Arc::new(AppState {
-        db: db.clone(),
-        shutdown: Arc::new(AtomicBool::new(false)),
-    });
+    // Initialize autonomy controller
+    let autonomy = Arc::new(tokio::sync::RwLock::new(
+        AutonomyController::new(
+            emotional_adapter.clone(),
+            neural_chat.clone(),
+            memory_cache.clone(),
+        )
+        .await?,
+    ));
 
-    // Set up shutdown handler
-    let state_clone = Arc::clone(&app_state);
+    // Initialize stream components
+    let obs = Arc::new(OBSController::new().await?);
+    let stream_manager = Arc::new(StreamManager::new(obs.clone()).await?);
+    let interaction_handler = Arc::new(InteractionHandler::new(
+        stream_manager.clone(),
+        autonomy.clone(),
+    ));
+
+    // Initialize security components
+    let security_system = Arc::new(SecurityDefenseSystem::new(
+        SecurityKnowledgeBase::new().await?,
+    ));
+    let content_filter = Arc::new(ContentFilter::new());
+    let mod_system = Arc::new(ModSystem::new(content_filter.clone()));
+
+    // Initialize maintenance components
+    let model_manager = Arc::new(ModelManager::new());
+    let maintenance_scheduler = Arc::new(MaintenanceScheduler::new(
+        model_manager.clone(),
+        security_system.clone(),
+    ));
+
+    // Initialize task automation
+    let task_manager = Arc::new(TaskManager::new());
+
+    // Schedule some default tasks
+    task_manager.schedule_task(AutomatedTask {
+        id: uuid::Uuid::new_v4().to_string(),
+        name: "Daily Content Analysis".to_string(),
+        description: "Analyze stream content and viewer engagement".to_string(),
+        priority: TaskPriority::High,
+        schedule: TaskSchedule::Recurring(Duration::days(1)),
+        last_run: None,
+        next_run: Utc::now() + Duration::hours(1),
+        task_type: TaskType::DataAnalysis,
+        parameters: serde_json::json!({}),
+        status: TaskStatus::Pending,
+    }).await?;
+
+    // Setup shutdown signal
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
     ctrlc::set_handler(move || {
-        info!("Received shutdown signal");
-        state_clone.shutdown.store(true, Ordering::Relaxed);
+        r.store(false, Ordering::SeqCst);
     })?;
 
-    // Start knowledge auto-updater in background
-    let db_clone = db.clone();
-    tokio::spawn(async move {
-        if let Err(e) = start_knowledge_updater(db_clone.get_pool()).await {
-            error!("Knowledge updater error: {}", e);
-        }
-    });
+    // Start knowledge updater
+    let knowledge_handle = tokio::spawn(start_knowledge_updater(running.clone()));
 
-    // Health check loop
-    let health_check_interval = tokio::time::interval(Duration::from_secs(300));
-    let db_clone = db.clone();
-    tokio::spawn(async move {
-        health_check_loop(health_check_interval, db_clone).await;
-    });
-
-    // Main application loop with error recovery
-    while !app_state.shutdown.load(Ordering::Relaxed) {
-        if let Err(e) = run_application_loop(&db).await {
-            error!("Application error: {}", e);
-            // Add exponential backoff before retry
-            tokio::time::sleep(Duration::from_secs(5)).await;
-        }
-    }
-
-    info!("Shutting down gracefully");
-    Ok(())
-}
-
-async fn run_application_loop(db: &DatabaseConnection) -> Result<()> {
-    // Initialize core components
-    let obs = OBSController::new().await?;
-    let voice_chat = VoiceChatManager::new().await?;
-    let neural_chat = NeuralChat::new(db.clone()).await?;
-    
-    // Main loop implementation
-    loop {
+    // Main event loop
+    while running.load(Ordering::SeqCst) {
         tokio::select! {
-            // Handle various events
-            _ = tokio::time::sleep(Duration::from_millis(100)) => {
-                // Regular processing
+            // Handle stream events
+            Some(event) = stream_manager.next_event() => {
+                handle_stream_event(event, &interaction_handler).await?;
+            }
+
+            // Handle security events
+            Some(attack) = security_system.detect_attack() => {
+                handle_security_event(attack, &security_system).await?;
+            }
+
+            // Periodic maintenance
+            _ = tokio::time::interval(Duration::hours(1).to_std()?).tick() => {
+                maintenance_scheduler.run_maintenance().await?;
+            }
+
+            // Handle automated tasks
+            Some(task) = task_manager.get_next_task() => {
+                if Utc::now() >= task.next_run {
+                    if let Err(e) = task_manager.execute_task(&task).await {
+                        error!("Task execution failed: {}", e);
+                    }
+                }
+            }
+
+            // Analyze task performance periodically
+            _ = tokio::time::interval(Duration::hours(24).to_std()?).tick() => {
+                if let Ok(report) = task_manager.analyze_performance().await {
+                    info!("Task performance report: {:?}", report);
+                }
             }
         }
     }
+
+    // Cleanup and shutdown
+    info!("Shutting down Kamen.Sparkle v2...");
+    knowledge_handle.abort();
+    stream_manager.shutdown().await?;
+    Ok(())
 }
 
-fn validate_environment_variables() -> Result<()> {
-    let required_vars = [
-        "DATABASE_URL",
-        "YOUTUBE_API_KEY",
-        "GOOGLE_APPLICATION_CREDENTIALS",
-        "OBS_WEBSOCKET_PORT",
-        "OBS_WEBSOCKET_PASSWORD",
-    ];
-    
-    for var in required_vars {
-        std::env::var(var).map_err(|_| AppError::Config(format!("Missing {}", var)))?;
+async fn handle_stream_event(
+    event: StreamEvent,
+    handler: &Arc<InteractionHandler>,
+) -> Result<()> {
+    match event {
+        StreamEvent::ChatMessage(msg) => handler.handle_chat_message(msg).await?,
+        StreamEvent::Donation(donation) => handler.handle_donation(donation).await?,
+        StreamEvent::Follow(user) => handler.handle_follow(user).await?,
+        // Add other event handlers as needed
+        _ => warn!("Unhandled stream event: {:?}", event),
     }
     Ok(())
 }
 
-async fn health_check_loop(mut interval: tokio::time::Interval, db: DatabaseConnection) {
-    loop {
-        interval.tick().await;
-        match check_system_health(&db).await {
-            Ok(_) => info!("Health check passed"),
-            Err(e) => error!("Health check failed: {}", e),
-        }
+async fn handle_security_event(
+    attack: Attack,
+    security: &Arc<SecurityDefenseSystem>,
+) -> Result<()> {
+    match attack.attack_type {
+        AttackType::Spam => security.handle_spam_attack(attack).await?,
+        AttackType::Bot => security.handle_bot_attack(attack).await?,
+        AttackType::DDoS => security.handle_ddos_attack(attack).await?,
+        // Add other attack handlers as needed
+        _ => warn!("Unhandled attack type: {:?}", attack.attack_type),
     }
-}
-
-async fn check_system_health(db: &DatabaseConnection) -> Result<()> {
-    // Check database connectivity
-    db.get_pool().acquire().await.map_err(AppError::Database)?;
-    
-    // Add other health checks here
-    // - Check OBS connection
-    // - Check memory usage
-    // - Check CPU usage
-    // - Check disk space
-    
     Ok(())
 }

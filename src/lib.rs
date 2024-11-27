@@ -62,17 +62,22 @@ dotenv = "0.15"
 
 pub mod ai;
 pub mod audio;
+pub mod autonomy;
 pub mod config;
 pub mod database;
 pub mod error;
 pub mod events;
+pub mod games;
+pub mod knowledge;
 pub mod maintenance;
+pub mod moderation;
 pub mod obs;
 pub mod safety;
 pub mod scrapers;
 pub mod security;
 pub mod stream;
 pub mod twitch;
+pub mod utils;
 pub mod voice;
 pub mod youtube;
 
@@ -87,8 +92,4 @@ pub mod prelude {
     pub use crate::knowledge::base::KnowledgeBase;
     pub use crate::security::defense_system::SecurityDefenseSystem;
     pub use crate::voice::chat_manager::VoiceChatManager;
-}
-
-pub mod utils {
-    pub mod base64;
 } 

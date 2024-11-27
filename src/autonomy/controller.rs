@@ -1,6 +1,8 @@
 use crate::emotions::adapter::EmotionalAdapter;
+use crate::emotions::processor::{EmotionalProcessor, EmotionalState, EmotionalResponse};
 use crate::ai::neural_chat::NeuralChat;
 use crate::memory::cache::MemoryCache;
+use crate::performance::optimizer::PerformanceOptimizer;
 use crate::error::Result;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -8,11 +10,13 @@ use crate::utils::base64::Base64Utils;
 
 pub struct AutonomyController {
     emotional_state: Arc<RwLock<EmotionalAdapter>>,
+    emotional_processor: Arc<EmotionalProcessor>,
     neural_core: Arc<NeuralChat>,
     memory: Arc<MemoryCache>,
     personality_traits: PersonalityTraits,
     consciousness_level: f32,
     encoded_state: String,
+    performance_optimizer: Arc<PerformanceOptimizer>,
 }
 
 #[derive(Clone, Debug)]
@@ -32,33 +36,62 @@ impl AutonomyController {
         neural_chat: Arc<NeuralChat>,
         memory: Arc<MemoryCache>,
     ) -> Result<Self> {
+        let emotional_processor = Arc::new(EmotionalProcessor::new().await?);
+        let performance_optimizer = Arc::new(PerformanceOptimizer::new());
+        
         let initial_state = serde_json::to_string(&PersonalityTraits::default())?;
         let encoded_state = Base64Utils::encode(&initial_state);
         
         Ok(Self {
             emotional_state: emotional_adapter,
+            emotional_processor,
             neural_core: neural_chat,
             memory,
             personality_traits: PersonalityTraits::default(),
             consciousness_level: 0.0,
             encoded_state,
+            performance_optimizer,
         })
     }
 
     pub async fn process_thought(&self, input: &str) -> Result<String> {
-        // Combine emotional state with neural processing
-        let emotional_state = self.emotional_state.read().await;
+        // Create optimization task
+        let mut task = Task::new(TaskType::ThoughtProcessing, input);
+        
+        // Optimize task execution
+        let optimization_result = self.performance_optimizer.optimize_task(&mut task).await?;
+        
+        // Process emotional aspects with optimization
+        let context = self.determine_context(input).await?;
+        let emotional_response = self.emotional_processor
+            .process_emotional_input(input, &context)
+            .await?;
+        
+        // Get optimized context
         let context = self.memory.get_relevant_context(input).await?;
         
-        // Generate response considering personality and emotional state
+        // Generate optimized response
         let response = self.neural_core.generate_response(
             input,
             &context,
-            &emotional_state,
+            &emotional_response,
             &self.personality_traits
         ).await?;
 
+        // Monitor and adjust performance
+        self.performance_optimizer.monitor_performance().await?;
+
         Ok(response)
+    }
+
+    async fn determine_context(&self, input: &str) -> Result<Context> {
+        // Analyze input to determine context
+        // Consider factors like:
+        // - Recent interaction history
+        // - Current emotional state
+        // - Known triggers or patterns
+        // - Time and situation awareness
+        todo!()
     }
 
     pub async fn update_consciousness(&mut self) {
