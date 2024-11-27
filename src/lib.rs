@@ -87,4 +87,8 @@ pub mod prelude {
     pub use crate::knowledge::base::KnowledgeBase;
     pub use crate::security::defense_system::SecurityDefenseSystem;
     pub use crate::voice::chat_manager::VoiceChatManager;
+}
+
+pub mod utils {
+    pub mod base64;
 } 

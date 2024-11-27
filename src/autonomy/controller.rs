@@ -4,6 +4,7 @@ use crate::memory::cache::MemoryCache;
 use crate::error::Result;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use crate::utils::base64::Base64Utils;
 
 pub struct AutonomyController {
     emotional_state: Arc<RwLock<EmotionalAdapter>>,
@@ -11,6 +12,7 @@ pub struct AutonomyController {
     memory: Arc<MemoryCache>,
     personality_traits: PersonalityTraits,
     consciousness_level: f32,
+    encoded_state: String,
 }
 
 #[derive(Clone, Debug)]
@@ -30,12 +32,16 @@ impl AutonomyController {
         neural_chat: Arc<NeuralChat>,
         memory: Arc<MemoryCache>,
     ) -> Result<Self> {
+        let initial_state = serde_json::to_string(&PersonalityTraits::default())?;
+        let encoded_state = Base64Utils::encode(&initial_state);
+        
         Ok(Self {
             emotional_state: emotional_adapter,
             neural_core: neural_chat,
             memory,
             personality_traits: PersonalityTraits::default(),
             consciousness_level: 0.0,
+            encoded_state,
         })
     }
 
@@ -100,6 +106,18 @@ impl AutonomyController {
         self.personality_traits.empathy = self.personality_traits.empathy.clamp(0.0, 1.0);
         self.personality_traits.creativity = self.personality_traits.creativity.clamp(0.0, 1.0);
         // Normalize other traits...
+    }
+
+    pub async fn save_state(&mut self) -> Result<()> {
+        let state = serde_json::to_string(&self.personality_traits)?;
+        self.encoded_state = Base64Utils::encode(&state);
+        Ok(())
+    }
+
+    pub async fn load_state(&mut self, encoded: &str) -> Result<()> {
+        let decoded = Base64Utils::decode_to_string(encoded)?;
+        self.personality_traits = serde_json::from_str(&decoded)?;
+        Ok(())
     }
 }
 
