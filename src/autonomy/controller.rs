@@ -9,6 +9,8 @@ use tokio::sync::RwLock;
 use crate::utils::base64::Base64Utils;
 use crate::vrchat::controller::VRChatController;
 use crate::games::league::player::LeaguePlayer;
+use crate::games::fortnite::player::FortnitePlayer;
+use crate::games::mtga::player::MTGAPlayer;
 
 pub struct AutonomyController {
     emotional_state: Arc<RwLock<EmotionalAdapter>>,
@@ -21,6 +23,8 @@ pub struct AutonomyController {
     performance_optimizer: Arc<PerformanceOptimizer>,
     vrchat_controller: Arc<VRChatController>,
     league_player: Arc<RwLock<LeaguePlayer>>,
+    fortnite_player: Arc<RwLock<FortnitePlayer>>,
+    mtga_player: Arc<RwLock<MTGAPlayer>>,
 }
 
 #[derive(Clone, Debug)]
@@ -54,6 +58,14 @@ impl AutonomyController {
             LeaguePlayer::new(neural_chat.clone()).await?
         ));
         
+        let fortnite_player = Arc::new(RwLock::new(
+            FortnitePlayer::new(neural_chat.clone()).await?
+        ));
+        
+        let mtga_player = Arc::new(RwLock::new(
+            MTGAPlayer::new(neural_chat.clone()).await?
+        ));
+        
         Ok(Self {
             emotional_state: emotional_adapter,
             emotional_processor,
@@ -65,6 +77,8 @@ impl AutonomyController {
             performance_optimizer,
             vrchat_controller,
             league_player,
+            fortnite_player,
+            mtga_player,
         })
     }
 
@@ -193,6 +207,39 @@ impl AutonomyController {
 
     pub async fn play_league(&self) -> Result<()> {
         let mut player = self.league_player.write().await;
+        
+        // Play a match
+        let outcome = player.play_match().await?;
+        
+        // Learn from match
+        self.learn_from_experience(&outcome.to_string()).await?;
+        
+        // Update emotional state based on outcome
+        self.emotional_processor.process_game_outcome(&outcome).await?;
+        
+        Ok(())
+    }
+
+    pub async fn play_fortnite(&self) -> Result<()> {
+        let mut player = self.fortnite_player.write().await;
+        
+        // Play a match
+        let outcome = player.play_match().await?;
+        
+        // Learn from match
+        self.learn_from_experience(&outcome.to_string()).await?;
+        
+        // Update emotional state based on outcome
+        self.emotional_processor.process_game_outcome(&outcome).await?;
+        
+        Ok(())
+    }
+
+    pub async fn play_mtga(&self) -> Result<()> {
+        let mut player = self.mtga_player.write().await;
+        
+        // Build competitive deck
+        let deck = player.build_competitive_deck().await?;
         
         // Play a match
         let outcome = player.play_match().await?;
