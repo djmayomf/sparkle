@@ -1,46 +1,160 @@
-use kamen_sparkle::prelude::*;
-use tracing::{info, error};
-use tokio::time::{self, Duration};
+mod config;
+mod twitch;
+mod nlp;
+mod knowledge;
+mod events;
+mod community;
+mod reactions;
+mod moderation;
+mod ai;
+mod memory;
+mod stream;
+mod autonomy;
+mod emotions;
+mod emulator;
+mod game;
+mod safety;
+mod maintenance;
+mod tts;
+mod obs;
+mod youtube;
+mod security;
+mod games;
+mod voice;
+use games::overwatch::trainer::OverwatchTrainer;
+use games::minecraft::trainer::MinecraftTrainer;
+use games::input_system::GameInputSystem;
+use voice::chat_manager::{VoiceChatManager, VoiceMessage};
+use voice::speech_recognition::{SpeechRecognizer, VoiceCommand, CommandType};
+
+use tokio;
+use events::subathon::SubathonManager;
+use community::manager::CommunityManager;
+use reactions::manager::ReactionManager;
+use moderation::filter::ContentFilter;
+use ai::neural_chat::NeuralChat;
+use memory::cache::MemoryCache;
+use stream::title_generator::TitleGenerator;
+use autonomy::controller::AutonomyController;
+use emotions::adapter::EmotionalAdapter;
+use emulator::retroarch::RetroArchClient;
+use game::input_handler::InputHandler;
+use game::state_manager::GameStateManager;
+use safety::mod_system::ModSystem;
+use maintenance::model_manager::ModelManager;
+use maintenance::scheduler::MaintenanceScheduler;
+use maintenance::scheduler::TaskType;
+use chrono::{DateTime, Utc, Duration};
+use std::collections::{HashMap, HashSet};
+use obs::controller::OBSController;
+use youtube::manager::YouTubeManager;
+use security::knowledge_base::SecurityKnowledgeBase;
+use stream::interaction_handler::InteractionHandler;
+use stream::session_manager::{StreamManager, StreamEvent};
+use security::defense_system::{SecurityDefenseSystem, Attack, AttackType};
+use crate::database::connection::DatabaseConnection;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{channel, Receiver, Sender};
+use tracing::{info, error, warn};
+use tracing_subscriber::{self, EnvFilter};
+use crate::error::{AppError, Result};
+use crate::database::connection::DatabaseConnection;
+use knowledge::auto_updater::{start_knowledge_updater};
+
+// Game engine: Bevy
+// use bevy::prelude::*;
+
+// kamen-sparkle_serde
+// impl From<u16> for Ipv4Addr {
+//     fn from(value: u16) -> Self {
+//         Ipv4Addr::new(127, 0, 0, 1)
+//     }
+// }
+//
+// /bin
+//
+// Cargo.toml -> Workspace
+//
+//
+
+// lib
+// pub mod prelude {
+// All reexports go here
+//
+//
+// }
+
+// struct State {}
+// 
+// fn main() -> impl Future<Output = Result<(), Box<dyn std::error::Error>>> {
+//      async {
+//
+//      }
+// }
+//
+
+// Add this struct to hold application state
+pub struct AppState {
+    db: DatabaseConnection,
+    shutdown: Arc<AtomicBool>,
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize logging with better formatting
+    // Initialize logging
     tracing_subscriber::fmt()
-        .with_target(false)
-        .with_thread_ids(true)
-        .with_level(true)
-        .with_file(true)
-        .with_line_number(true)
+        .with_env_filter(EnvFilter::from_default_env())
         .init();
 
-    // Load environment variables
+    info!("Starting Kamen-Sparkle application");
+
+    // Load environment variables with validation
     dotenv::dotenv().map_err(|e| AppError::Config(e.to_string()))?;
     validate_environment_variables()?;
 
-    // Initialize database connection with retry logic
-    let db = retry_with_backoff(|| DatabaseConnection::new()).await?;
-    
-    // Initialize voice chat with retry logic
-    let voice = retry_with_backoff(|| VoiceChatManager::new()).await?;
+    // Initialize database with proper error handling and connection pooling
+    let db = DatabaseConnection::new()
+        .await
+        .map_err(|e| {
+            error!("Failed to initialize database: {}", e);
+            AppError::Database(e)
+        })?;
 
-    info!("Kamen Sparkle initialized successfully");
-    
-    // Set up graceful shutdown
-    let running = Arc::new(AtomicBool::new(true));
-    let r = running.clone();
-    
+    // Create application state
+    let app_state = Arc::new(AppState {
+        db: db.clone(),
+        shutdown: Arc::new(AtomicBool::new(false)),
+    });
+
+    // Set up shutdown handler
+    let state_clone = Arc::clone(&app_state);
     ctrlc::set_handler(move || {
-        info!("Shutdown signal received");
-        r.store(false, Ordering::SeqCst);
-    }).map_err(|e| AppError::System(e.to_string()))?;
+        info!("Received shutdown signal");
+        state_clone.shutdown.store(true, Ordering::Relaxed);
+    })?;
+
+    // Start knowledge auto-updater in background
+    let db_clone = db.clone();
+    tokio::spawn(async move {
+        if let Err(e) = start_knowledge_updater(db_clone.get_pool()).await {
+            error!("Knowledge updater error: {}", e);
+        }
+    });
+
+    // Health check loop
+    let health_check_interval = tokio::time::interval(Duration::from_secs(300));
+    let db_clone = db.clone();
+    tokio::spawn(async move {
+        health_check_loop(health_check_interval, db_clone).await;
+    });
 
     // Main application loop with error recovery
-    while running.load(Ordering::SeqCst) {
-        if let Err(e) = run_application_loop(&db, &voice).await {
+    while !app_state.shutdown.load(Ordering::Relaxed) {
+        if let Err(e) = run_application_loop(&db).await {
             error!("Application error: {}", e);
-            time::sleep(Duration::from_secs(1)).await;
+            // Add exponential backoff before retry
+            tokio::time::sleep(Duration::from_secs(5)).await;
         }
     }
 
@@ -48,41 +162,18 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn run_application_loop(_db: &DatabaseConnection, _voice: &VoiceChatManager) -> Result<()> {
-    // Process events in batches for better performance
-    let mut interval = time::interval(Duration::from_millis(100));
+async fn run_application_loop(db: &DatabaseConnection) -> Result<()> {
+    // Initialize core components
+    let obs = OBSController::new().await?;
+    let voice_chat = VoiceChatManager::new().await?;
+    let neural_chat = NeuralChat::new(db.clone()).await?;
     
+    // Main loop implementation
     loop {
-        interval.tick().await;
-        
-        // Add your main processing logic here
-        // For example:
-        // - Process voice commands
-        // - Update knowledge base
-        // - Handle stream events
-    }
-}
-
-async fn retry_with_backoff<F, Fut, T>(f: F) -> Result<T> 
-where
-    F: Fn() -> Fut,
-    Fut: std::future::Future<Output = Result<T>>,
-{
-    let mut retries = 0;
-    let max_retries = 3;
-
-    loop {
-        match f().await {
-            Ok(result) => return Ok(result),
-            Err(e) => {
-                retries += 1;
-                if retries >= max_retries {
-                    return Err(e);
-                }
-                let delay = Duration::from_secs(2u64.pow(retries));
-                error!("Retry attempt {}/{} after error: {}. Waiting {:?}", 
-                    retries, max_retries, e, delay);
-                time::sleep(delay).await;
+        tokio::select! {
+            // Handle various events
+            _ = tokio::time::sleep(Duration::from_millis(100)) => {
+                // Regular processing
             }
         }
     }
@@ -91,11 +182,37 @@ where
 fn validate_environment_variables() -> Result<()> {
     let required_vars = [
         "DATABASE_URL",
-        "GOOGLE_API_KEY",
+        "YOUTUBE_API_KEY",
+        "GOOGLE_APPLICATION_CREDENTIALS",
+        "OBS_WEBSOCKET_PORT",
+        "OBS_WEBSOCKET_PASSWORD",
     ];
     
     for var in required_vars {
         std::env::var(var).map_err(|_| AppError::Config(format!("Missing {}", var)))?;
     }
     Ok(())
-} 
+}
+
+async fn health_check_loop(mut interval: tokio::time::Interval, db: DatabaseConnection) {
+    loop {
+        interval.tick().await;
+        match check_system_health(&db).await {
+            Ok(_) => info!("Health check passed"),
+            Err(e) => error!("Health check failed: {}", e),
+        }
+    }
+}
+
+async fn check_system_health(db: &DatabaseConnection) -> Result<()> {
+    // Check database connectivity
+    db.get_pool().acquire().await.map_err(AppError::Database)?;
+    
+    // Add other health checks here
+    // - Check OBS connection
+    // - Check memory usage
+    // - Check CPU usage
+    // - Check disk space
+    
+    Ok(())
+}

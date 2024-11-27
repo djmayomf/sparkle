@@ -14,11 +14,20 @@ pub enum AppError {
     #[error("OBS error: {0}")]
     OBS(String),
 
-    #[error("Voice error: {0}")]
+    #[error("Voice processing error: {0}")]
     Voice(String),
 
-    #[error("System error: {0}")]
-    System(String),
+    #[error("Neural chat error: {0}")]
+    NeuralChat(String),
+
+    #[error("Knowledge base error: {0}")]
+    KnowledgeBase(String),
+
+    #[error("IO error: {0}")]
+    IO(#[from] std::io::Error),
+
+    #[error("Serialization error: {0}")]
+    Serialization(#[from] serde_json::Error),
 }
 
 pub type Result<T> = std::result::Result<T, AppError>; 

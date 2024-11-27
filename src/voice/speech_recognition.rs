@@ -1,8 +1,6 @@
 use crate::error::{AppError, Result};
 use reqwest::Client;
 use serde_json::json;
-use base64::engine::general_purpose::STANDARD;
-use base64::Engine;
 
 pub struct SpeechRecognizer {
     client: Client,
@@ -41,10 +39,9 @@ impl SpeechRecognizer {
                 "sampleRateHertz": 16000,
                 "languageCode": "en-US",
                 "model": "command_and_search",
-                "enableAutomaticPunctuation": true,
             },
             "audio": {
-                "content": STANDARD.encode(audio_data)
+                "content": base64::encode(audio_data),
             }
         });
 
@@ -63,6 +60,8 @@ impl SpeechRecognizer {
             .await
             .map_err(|e| AppError::Voice(e.to_string()))?;
 
+        // Process the response and determine if it's a command
+        // This is a simplified implementation
         if let Some(result) = response_json["results"].get(0) {
             if let Some(alt) = result["alternatives"].get(0) {
                 let content = alt["transcript"]
@@ -74,6 +73,7 @@ impl SpeechRecognizer {
                     .as_f64()
                     .ok_or_else(|| AppError::Voice("Missing confidence".to_string()))? as f32;
 
+                // Simple command detection logic
                 let command_type = if content.contains("game") {
                     CommandType::GameControl
                 } else if content.contains("stream") {

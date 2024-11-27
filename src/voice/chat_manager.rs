@@ -1,8 +1,7 @@
 use crate::error::{AppError, Result};
 use reqwest::Client;
 use serde_json::json;
-use base64::engine::general_purpose::STANDARD;
-use base64::Engine;
+use base64;
 
 pub struct VoiceChatManager {
     client: Client,
@@ -36,7 +35,7 @@ impl VoiceChatManager {
                 "enableAutomaticPunctuation": true,
             },
             "audio": {
-                "content": STANDARD.encode(audio_data)
+                "content": base64::encode(audio_data)
             }
         });
 
