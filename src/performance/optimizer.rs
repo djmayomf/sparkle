@@ -10,6 +10,13 @@ pub struct PerformanceOptimizer {
     task_scheduler: Arc<RwLock<TaskScheduler>>,
     resource_monitor: ResourceMonitor,
     metrics_collector: MetricsCollector,
+    neural_optimizer: Arc<NeuralOptimizer>,
+    query_optimizer: Arc<QueryOptimizer>,
+    network_optimizer: Arc<NetworkOptimizer>,
+    thread_pool: Arc<ThreadPoolManager>,
+    cache_predictor: Arc<CachePredictor>,
+    load_balancer: Arc<LoadBalancer>,
+    content_optimizer: Arc<ContentOptimizer>,
 }
 
 #[derive(Debug)]
@@ -42,10 +49,41 @@ impl PerformanceOptimizer {
             task_scheduler: Arc::new(RwLock::new(TaskScheduler::new())),
             resource_monitor: ResourceMonitor::new(),
             metrics_collector: MetricsCollector::new(),
+            neural_optimizer: Arc::new(NeuralOptimizer::new()),
+            query_optimizer: Arc::new(QueryOptimizer::new()),
+            network_optimizer: Arc::new(NetworkOptimizer::new()),
+            thread_pool: Arc::new(ThreadPoolManager::new()),
+            cache_predictor: Arc::new(CachePredictor::new()),
+            load_balancer: Arc::new(LoadBalancer::new()),
+            content_optimizer: Arc::new(ContentOptimizer::new()),
         }
     }
 
     pub async fn optimize_task(&self, task: &mut Task) -> Result<OptimizationResult> {
+        // Predict cache needs
+        let cache_prediction = self.cache_predictor.predict_cache_needs().await?;
+        
+        // Optimize neural operations if present
+        if let Some(neural_ops) = &mut task.neural_operations {
+            self.neural_optimizer.optimize_model(neural_ops).await?;
+        }
+        
+        // Optimize database queries
+        if let Some(queries) = &mut task.database_queries {
+            self.query_optimizer.optimize_query(queries).await?;
+        }
+        
+        // Optimize network operations
+        if let Some(network_ops) = &mut task.network_operations {
+            self.network_optimizer.optimize_connection(network_ops).await?;
+        }
+        
+        // Balance load across resources
+        let distribution = self.load_balancer.balance_load(task.workload).await?;
+        
+        // Execute with thread pool
+        let execution_plan = self.thread_pool.create_execution_plan(task, distribution)?;
+        
         // Monitor current resource usage
         let resources = self.resource_monitor.get_current_usage();
         
@@ -62,6 +100,11 @@ impl PerformanceOptimizer {
         
         // Update metrics
         self.metrics_collector.record_optimization(task, &schedule_result).await?;
+
+        // Optimize content generation if present
+        if let Some(content_task) = &mut task.content_generation {
+            self.content_optimizer.optimize_content_task(content_task).await?;
+        }
 
         Ok(schedule_result)
     }

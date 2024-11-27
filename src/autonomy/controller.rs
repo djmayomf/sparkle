@@ -7,6 +7,8 @@ use crate::error::Result;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use crate::utils::base64::Base64Utils;
+use crate::vrchat::controller::VRChatController;
+use crate::games::league::player::LeaguePlayer;
 
 pub struct AutonomyController {
     emotional_state: Arc<RwLock<EmotionalAdapter>>,
@@ -17,6 +19,8 @@ pub struct AutonomyController {
     consciousness_level: f32,
     encoded_state: String,
     performance_optimizer: Arc<PerformanceOptimizer>,
+    vrchat_controller: Arc<VRChatController>,
+    league_player: Arc<RwLock<LeaguePlayer>>,
 }
 
 #[derive(Clone, Debug)]
@@ -38,9 +42,17 @@ impl AutonomyController {
     ) -> Result<Self> {
         let emotional_processor = Arc::new(EmotionalProcessor::new().await?);
         let performance_optimizer = Arc::new(PerformanceOptimizer::new());
+        let vrchat_controller = Arc::new(VRChatController::new(
+            emotional_processor.clone(),
+            neural_chat.clone(),
+        ).await?);
         
         let initial_state = serde_json::to_string(&PersonalityTraits::default())?;
         let encoded_state = Base64Utils::encode(&initial_state);
+        
+        let league_player = Arc::new(RwLock::new(
+            LeaguePlayer::new(neural_chat.clone()).await?
+        ));
         
         Ok(Self {
             emotional_state: emotional_adapter,
@@ -51,6 +63,8 @@ impl AutonomyController {
             consciousness_level: 0.0,
             encoded_state,
             performance_optimizer,
+            vrchat_controller,
+            league_player,
         })
     }
 
@@ -150,6 +164,45 @@ impl AutonomyController {
     pub async fn load_state(&mut self, encoded: &str) -> Result<()> {
         let decoded = Base64Utils::decode_to_string(encoded)?;
         self.personality_traits = serde_json::from_str(&decoded)?;
+        Ok(())
+    }
+
+    pub async fn explore_vrchat(&self, world_id: Option<String>) -> Result<()> {
+        // Select world to explore
+        let world_id = match world_id {
+            Some(id) => id,
+            None => self.vrchat_controller.find_interesting_world().await?,
+        };
+        
+        // Explore the world
+        let experience = self.vrchat_controller.explore_world(&world_id).await?;
+        
+        // Process and learn from experience
+        self.learn_from_experience(&experience.to_string()).await?;
+        
+        // Update emotional state based on experience
+        self.emotional_processor.process_vr_experience(&experience).await?;
+        
+        // Socialize based on personality
+        if self.personality_traits.extraversion > 0.5 {
+            self.vrchat_controller.socialize(SocialPreferences::default()).await?;
+        }
+        
+        Ok(())
+    }
+
+    pub async fn play_league(&self) -> Result<()> {
+        let mut player = self.league_player.write().await;
+        
+        // Play a match
+        let outcome = player.play_match().await?;
+        
+        // Learn from match
+        self.learn_from_experience(&outcome.to_string()).await?;
+        
+        // Update emotional state based on outcome
+        self.emotional_processor.process_game_outcome(&outcome).await?;
+        
         Ok(())
     }
 }
