@@ -1,0 +1,11 @@
+F:\GitHub\Kamen.Sparkle v2\target\debug\deps\libsqlx-355f05fb8d6e8807.rmeta: C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\sqlx-0.7.4\src\lib.rs C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\sqlx-0.7.4\src\any\mod.rs C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\sqlx-0.7.4\src\macros\mod.rs C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\sqlx-0.7.4\src\ty_match.rs C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\sqlx-0.7.4\src\lib.md C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\sqlx-0.7.4\src\macros/test.md C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\sqlx-0.7.4\src\any\install_drivers_note.md
+
+F:\GitHub\Kamen.Sparkle v2\target\debug\deps\sqlx-355f05fb8d6e8807.d: C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\sqlx-0.7.4\src\lib.rs C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\sqlx-0.7.4\src\any\mod.rs C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\sqlx-0.7.4\src\macros\mod.rs C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\sqlx-0.7.4\src\ty_match.rs C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\sqlx-0.7.4\src\lib.md C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\sqlx-0.7.4\src\macros/test.md C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\sqlx-0.7.4\src\any\install_drivers_note.md
+
+C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\sqlx-0.7.4\src\lib.rs:
+C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\sqlx-0.7.4\src\any\mod.rs:
+C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\sqlx-0.7.4\src\macros\mod.rs:
+C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\sqlx-0.7.4\src\ty_match.rs:
+C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\sqlx-0.7.4\src\lib.md:
+C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\sqlx-0.7.4\src\macros/test.md:
+C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\sqlx-0.7.4\src\any\install_drivers_note.md:

@@ -1,0 +1,11 @@
+F:\GitHub\Kamen.Sparkle v2\target\debug\deps\libeither-b355fce404b53580.rmeta: C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\either-1.13.0\src\lib.rs C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\either-1.13.0\src\serde_untagged.rs C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\either-1.13.0\src\serde_untagged_optional.rs C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\either-1.13.0\src\iterator.rs C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\either-1.13.0\src\into_either.rs
+
+F:\GitHub\Kamen.Sparkle v2\target\debug\deps\libeither-b355fce404b53580.rlib: C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\either-1.13.0\src\lib.rs C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\either-1.13.0\src\serde_untagged.rs C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\either-1.13.0\src\serde_untagged_optional.rs C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\either-1.13.0\src\iterator.rs C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\either-1.13.0\src\into_either.rs
+
+F:\GitHub\Kamen.Sparkle v2\target\debug\deps\either-b355fce404b53580.d: C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\either-1.13.0\src\lib.rs C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\either-1.13.0\src\serde_untagged.rs C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\either-1.13.0\src\serde_untagged_optional.rs C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\either-1.13.0\src\iterator.rs C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\either-1.13.0\src\into_either.rs
+
+C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\either-1.13.0\src\lib.rs:
+C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\either-1.13.0\src\serde_untagged.rs:
+C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\either-1.13.0\src\serde_untagged_optional.rs:
+C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\either-1.13.0\src\iterator.rs:
+C:\Users\DeVante\.cargo\registry\src\index.crates.io-6f17d22bba15001f\either-1.13.0\src\into_either.rs:
