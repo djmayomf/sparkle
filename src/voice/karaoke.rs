@@ -118,15 +118,67 @@ impl KaraokeManager {
     }
 
     async fn process_lyrics_with_timing(&self, song: &KaraokeSong) -> Result<Vec<TimedLyric>, Box<dyn std::error::Error>> {
-        let lyrics = self.parse_lyrics_with_timing(&song.lyrics)?;
+        let mut timed_lyrics = Vec::new();
+        let lines = song.lyrics.lines();
+        let mut current_time = 0.0;
         
-        // Process lyrics ahead of time for better performance
-        for lyric in lyrics.iter() {
-            // Pre-analyze lyrics for breathing points and phrasing
-            self.analyze_phrase_timing(lyric)?;
+        for line in lines {
+            let duration = self.estimate_line_duration(line, song.bpm);
+            timed_lyrics.push(TimedLyric {
+                text: line.to_string(),
+                start_time: current_time,
+                duration,
+                is_breath_point: false,
+            });
+            current_time += duration;
         }
 
-        Ok(lyrics)
+        Ok(timed_lyrics)
+    }
+
+    fn estimate_line_duration(&self, line: &str, bpm: f32) -> f32 {
+        // Rough estimate: 1 syllable = 1 beat
+        let syllable_count = line.split_whitespace()
+            .map(|word| self.count_syllables(word))
+            .sum::<usize>();
+        
+        let beats = syllable_count as f32;
+        let seconds_per_beat = 60.0 / bpm;
+        
+        beats * seconds_per_beat
+    }
+
+    fn count_syllables(&self, word: &str) -> usize {
+        // Simple syllable counting heuristic
+        let vowels = ['a', 'e', 'i', 'o', 'u', 'y'];
+        let mut count = 0;
+        let mut prev_was_vowel = false;
+
+        for c in word.chars().flat_map(|c| c.to_lowercase()) {
+            let is_vowel = vowels.contains(&c);
+            if is_vowel && !prev_was_vowel {
+                count += 1;
+            }
+            prev_was_vowel = is_vowel;
+        }
+
+        count.max(1)
+    }
+
+    fn add_breath_point(&self, time: f32) -> Result<(), Box<dyn std::error::Error>> {
+        // Implementation for adding breath points
+        Ok(())
+    }
+
+    fn apply_singing_params(&self, text: String, params: SingingVoiceParams) -> String {
+        // Apply SSML tags for singing parameters
+        format!(
+            "<speak><prosody pitch='{:+}st' rate='{}%' volume='{:+}dB'>{}</prosody></speak>",
+            params.base_pitch,
+            (1.0 + params.timing_offset) * 100.0,
+            params.expression * 6.0, // Convert to dB
+            text
+        )
     }
 
     // Add structure for timed lyrics
