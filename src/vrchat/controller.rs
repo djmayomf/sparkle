@@ -3,6 +3,7 @@ use crate::emotions::processor::EmotionalProcessor;
 use crate::ai::neural_chat::NeuralChat;
 use crate::vrchat::performance_arts::PerformanceController;
 use crate::vrchat::event_manager::EventManager;
+use crate::apps::{AppInterface, AppType, AppState};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -18,6 +19,7 @@ pub struct VRChatController {
     neural_core: Arc<NeuralChat>,
     performance_controller: PerformanceController,
     event_manager: EventManager,
+    app_interface: AppInterface,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,17 +44,19 @@ impl VRChatController {
     pub async fn new(
         emotional_processor: Arc<EmotionalProcessor>,
         neural_core: Arc<NeuralChat>,
+        app_type: AppType,
     ) -> Result<Self> {
         Ok(Self {
             client: VRChatClient::new().await?,
-            avatar_manager: AvatarManager::new(),
+            avatar_manager: AvatarManager::new(app_type.clone()),
             world_explorer: WorldExplorer::new(),
             interaction_handler: VRInteractionHandler::new(),
-            motion_controller: MotionController::new(),
+            motion_controller: MotionController::new(app_type.clone()),
             emotional_processor,
             neural_core,
-            performance_controller: PerformanceController::new(),
+            performance_controller: PerformanceController::new(app_type.clone()),
             event_manager: EventManager::new(),
+            app_interface: AppInterface::new(app_type),
         })
     }
 
@@ -84,55 +88,49 @@ impl VRChatController {
     }
 
     async fn observe_environment(&self) -> Result<EnvironmentObservations> {
-        // Scan nearby users
-        let nearby_users = self.client.get_nearby_users().await?;
+        // Scan nearby users with natural head movement
+        let nearby_users = self.scan_environment_naturally().await?;
         
-        // Analyze environment
-        let environment = self.client.get_environment_data().await?;
+        // Analyze environment with attention patterns
+        let environment = self.analyze_with_natural_attention().await?;
         
-        // Process visual information
-        let visual_data = self.process_visual_input().await?;
+        // Process visual information with natural focus shifts
+        let visual_data = self.process_visual_input_naturally().await?;
         
-        // Analyze social dynamics
-        let social_context = self.analyze_social_context(&nearby_users).await?;
+        // Analyze social dynamics with emotional awareness
+        let social_data = self.analyze_social_context().await?;
         
         Ok(EnvironmentObservations {
             users: nearby_users,
             environment,
-            visual_data,
-            social_context,
+            visual: visual_data,
+            social: social_data,
         })
     }
 
-    async fn handle_interaction(&self, interaction: VRInteraction) -> Result<InteractionOutcome> {
-        // Get emotional context
-        let emotional_state = self.emotional_processor.get_current_state().await?;
+    pub async fn handle_interaction(&mut self, interaction: VRInteraction) -> Result<InteractionOutcome> {
+        // Add natural anticipation motion
+        self.motion_controller.prepare_for_interaction(&interaction).await?;
         
-        // Generate appropriate response
-        let response = self.neural_core.generate_interaction_response(
-            &interaction,
-            &emotional_state,
-        ).await?;
-        
-        // Execute interaction
+        // Execute interaction with personality and app-specific adaptations
         let outcome = match interaction.interaction_type {
-            InteractionType::Conversation => {
-                self.handle_conversation(interaction, response).await?
-            }
-            InteractionType::Gesture => {
-                self.perform_gesture(interaction.gesture_type).await?
+            InteractionType::Social => {
+                let adapted_interaction = self.app_interface.adapt_social_interaction(interaction).await?;
+                self.handle_social_interaction_naturally(adapted_interaction).await?
             }
             InteractionType::Movement => {
-                self.motion_controller.execute_movement(interaction.movement).await?
+                let adapted_movement = self.app_interface.adapt_movement(interaction.movement).await?;
+                self.motion_controller.execute_natural_movement(adapted_movement).await?
             }
             InteractionType::Expression => {
-                self.avatar_manager.express_emotion(interaction.expression).await?
+                let adapted_expression = self.app_interface.adapt_expression(interaction.expression).await?;
+                self.avatar_manager.express_natural_emotion(adapted_expression).await?
             }
         };
 
-        // Learn from interaction
-        self.learn_from_interaction(&interaction, &outcome).await?;
-
+        // Add natural follow-through motion
+        self.motion_controller.finish_interaction_naturally().await?;
+        
         Ok(outcome)
     }
 
@@ -157,16 +155,16 @@ impl VRChatController {
     }
 
     pub async fn express_emotion(&self, emotion: Emotion) -> Result<()> {
-        // Convert emotion to VR expressions
-        let expressions = self.map_emotion_to_expressions(emotion).await?;
+        // Convert emotion to app-specific expressions
+        let expressions = self.app_interface.map_emotion_to_expressions(emotion).await?;
         
         // Apply expressions to avatar
         for expression in expressions {
             self.avatar_manager.apply_expression(expression).await?;
         }
         
-        // Add supporting gestures
-        let gestures = self.map_emotion_to_gestures(emotion).await?;
+        // Add supporting gestures adapted for the current app
+        let gestures = self.app_interface.map_emotion_to_gestures(emotion).await?;
         for gesture in gestures {
             self.motion_controller.perform_gesture(gesture).await?;
         }
