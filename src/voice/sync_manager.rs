@@ -9,6 +9,7 @@ pub struct SyncState {
     pub voice_config: VoiceConfig,
     pub timestamp: DateTime<Utc>,
     pub is_speaking: bool,
+    pub karaoke_active: bool,
 }
 
 pub struct SyncManager {
@@ -18,6 +19,7 @@ pub struct SyncManager {
     current_state: Arc<Mutex<SyncState>>,
     state_tx: mpsc::Sender<SyncState>,
     sync_interval: tokio::time::Duration,
+    karaoke_manager: Arc<Mutex<KaraokeManager>>,
 }
 
 impl SyncManager {
@@ -25,6 +27,7 @@ impl SyncManager {
         emotion_handler: EmotionHandler,
         speech_recognizer: SpeechRecognizer,
         tts_model: TTSModel,
+        karaoke_manager: KaraokeManager,
     ) -> (Self, mpsc::Receiver<SyncState>) {
         let (state_tx, state_rx) = mpsc::channel(100);
         
@@ -37,9 +40,11 @@ impl SyncManager {
                 voice_config: VoiceConfig::default(),
                 timestamp: Utc::now(),
                 is_speaking: false,
+                karaoke_active: false,
             })),
             state_tx,
             sync_interval: tokio::time::Duration::from_millis(16), // 60fps sync rate
+            karaoke_manager: Arc::new(Mutex::new(karaoke_manager)),
         };
 
         // Start sync monitoring
@@ -79,6 +84,7 @@ impl SyncManager {
                         voice_config: tts.get_current_config().clone(),
                         timestamp: Utc::now(),
                         is_speaking: tts.is_speaking(),
+                        karaoke_active: state.karaoke_active,
                     };
 
                     // Broadcast state update
@@ -117,27 +123,43 @@ impl SyncManager {
     }
 
     fn get_voice_config_for_emotion(emotion: &Emotion) -> VoiceConfig {
-        match emotion {
-            Emotion::Happy => VoiceConfig {
-                pitch: 2.0,
-                speaking_rate: 1.1,
-                volume_gain_db: 0.0,
-                ..Default::default()
-            },
-            Emotion::Excited => VoiceConfig {
-                pitch: 4.0,
-                speaking_rate: 1.2,
-                volume_gain_db: 2.0,
-                ..Default::default()
-            },
-            Emotion::Focused => VoiceConfig {
-                pitch: 0.0,
-                speaking_rate: 0.95,
-                volume_gain_db: -1.0,
-                ..Default::default()
-            },
-            // Add configurations for other emotions...
-            _ => VoiceConfig::default(),
+        if KARAOKE_ACTIVE {
+            // Apply singing voice modifications
+            match emotion {
+                Emotion::Happy => VoiceConfig {
+                    pitch: 2.0,
+                    speaking_rate: 1.0,
+                    volume_gain_db: 2.0,
+                    vibrato_amount: 0.3,
+                    auto_tune: true,
+                    ..Default::default()
+                },
+                // ... other emotion configs for singing ...
+            }
+        } else {
+            // Original voice configs
+            match emotion {
+                Emotion::Happy => VoiceConfig {
+                    pitch: 2.0,
+                    speaking_rate: 1.1,
+                    volume_gain_db: 0.0,
+                    ..Default::default()
+                },
+                Emotion::Excited => VoiceConfig {
+                    pitch: 4.0,
+                    speaking_rate: 1.2,
+                    volume_gain_db: 2.0,
+                    ..Default::default()
+                },
+                Emotion::Focused => VoiceConfig {
+                    pitch: 0.0,
+                    speaking_rate: 0.95,
+                    volume_gain_db: -1.0,
+                    ..Default::default()
+                },
+                // Add configurations for other emotions...
+                _ => VoiceConfig::default(),
+            }
         }
     }
 
@@ -160,6 +182,7 @@ impl SyncManager {
             voice_config: new_voice_config,
             timestamp: Utc::now(),
             is_speaking: tts.is_speaking(),
+            karaoke_active: state.karaoke_active,
         };
 
         // Broadcast update
@@ -185,6 +208,7 @@ impl SyncManager {
             voice_config: VoiceConfig::default(),
             timestamp: Utc::now(),
             is_speaking: false,
+            karaoke_active: false,
         };
 
         // Broadcast reset
