@@ -1,65 +1,4 @@
-// Main library exports and module declarations
-mod games;
-mod knowledge;
-mod moderation;
-mod obs;
-mod scrapers;
-mod security;
-mod stream;
-mod voice;
-
-// Re-exports for commonly used types
-pub use games::launcher::GameLauncher;
-pub use knowledge::base::KnowledgeBase;
-pub use moderation::content_filter::ContentFilter;
-pub use obs::controller::OBSController;
-pub use security::defense_system::SecurityDefenseSystem;
-pub use stream::scheduler::StreamScheduler;
-pub use voice::speech_recognition::SpeechRecognizer;
-
-// Public modules
-pub mod games {
-    pub use super::games::launcher::GameLauncher;
-    pub use super::games::apex::trainer::ApexTrainer;
-    pub use super::games::valorant::trainer::ValorantTrainer;
-}
-
-pub mod scrapers {
-    pub use super::scrapers::anime_scraper::AnimeNewsScraper;
-    pub use super::scrapers::casp_scraper::CASPScraper;
-    pub use super::scrapers::comptia_scraper::CompTIAScraper;
-    pub use super::scrapers::darkreading_scraper::DarkReadingScraper;
-    pub use super::scrapers::security_scraper::SecurityNewsScraper;
-    pub use super::scrapers::tech_news_scraper::TechNewsScraper;
-    pub use super::scrapers::tokusatsu_scraper::TokuScraper;
-}
-
-pub mod security {
-    pub use super::security::defense_system::SecurityDefenseSystem;
-    pub use super::security::vpn_manager::VPNManager;
-}
-
-pub mod stream {
-    pub use super::stream::scheduler::StreamScheduler;
-    pub use super::stream::session_manager::SessionManager;
-}
-
-// Dependencies in Cargo.toml
-[dependencies]
-tokio = { version = "1.0", features = ["full"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-chrono = { version = "0.4", features = ["serde"] }
-reqwest = { version = "0.11", features = ["json"] }
-scraper = "0.17"
-pdf = "0.8"
-regex = "1.5"
-google-cloud-speech = "0.2"
-cpal = "0.15"
-obs-websocket = "0.5"
-fastrand = "2.0"
-dotenv = "0.15"
-
+// Remove duplicate module declarations and keep only the public ones
 pub mod ai;
 pub mod audio;
 pub mod autonomy;
@@ -67,19 +6,60 @@ pub mod config;
 pub mod database;
 pub mod error;
 pub mod events;
-pub mod games;
-pub mod knowledge;
+pub mod games {
+    pub mod launcher;
+    pub mod apex {
+        pub mod trainer;
+    }
+    pub mod valorant {
+        pub mod trainer;
+    }
+}
+pub mod knowledge {
+    pub mod base;
+}
 pub mod maintenance;
-pub mod moderation;
-pub mod obs;
+pub mod moderation {
+    pub mod content_filter;
+}
+pub mod obs {
+    pub mod controller;
+}
 pub mod safety;
-pub mod scrapers;
-pub mod security;
-pub mod stream;
+pub mod scrapers {
+    pub mod anime_scraper;
+    pub mod casp_scraper;
+    pub mod comptia_scraper;
+    pub mod darkreading_scraper;
+    pub mod security_scraper;
+    pub mod tech_news_scraper;
+    pub mod tokusatsu_scraper;
+}
+pub mod security {
+    pub mod defense_system;
+    pub mod vpn_manager;
+
+    pub use self::defense_system::{
+        SecurityDefenseSystem,
+        Permission,
+        SecurityError,
+    };
+}
+pub mod stream {
+    pub mod scheduler;
+    pub mod session_manager;
+}
 pub mod twitch;
 pub mod utils;
-pub mod voice;
+pub mod voice {
+    pub mod chat_manager;
+    pub mod speech_recognition;
+}
 pub mod youtube;
+pub mod automation;
+pub mod emotions {
+    pub mod adapter;
+}
 
 // Re-export commonly used items
 pub use crate::error::{AppError, Result};
@@ -92,4 +72,12 @@ pub mod prelude {
     pub use crate::knowledge::base::KnowledgeBase;
     pub use crate::security::defense_system::SecurityDefenseSystem;
     pub use crate::voice::chat_manager::VoiceChatManager;
+    pub use crate::automation::{
+        TaskManager,
+        AutomatedTask,
+        TaskType,
+        TaskPriority,
+        TaskSchedule,
+        TaskStatus,
+    };
 } 

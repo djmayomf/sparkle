@@ -1,163 +1,199 @@
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tokio::sync::broadcast;
-use chrono::{DateTime, Utc};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum AttackType {
-    DDoS,
-    BruteForce,
-    SQLInjection,
-    XSS,
-    BotAttack,
-    PacketFlood,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Attack {
-    pub attack_type: AttackType,
-    pub source_ip: String,
-    pub timestamp: DateTime<Utc>,
-    pub severity: u8,
-    pub blocked: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DefenseResponse {
-    pub message: String,
-    pub countermeasure: String,
-    pub taunt: String,
-}
+use std::time::{Duration, Instant};
+use rand::{thread_rng, Rng};
 
 pub struct SecurityDefenseSystem {
-    attack_history: Vec<Attack>,
-    blocked_ips: HashSet<String>,
-    event_sender: broadcast::Sender<Attack>,
-    voice_tx: mpsc::Sender<String>,
-    taunts: Vec<String>,
+    // Track authentication attempts and sessions
+    auth_attempts: HashMap<String, (u32, Instant)>,
+    active_sessions: HashMap<String, SessionInfo>,
+    // Configuration
+    max_auth_attempts: u32,
+    auth_timeout: Duration,
+    session_timeout: Duration,
+}
+
+struct SessionInfo {
+    created_at: Instant,
+    last_verified: Instant,
+    trust_score: f32,
+    permissions: Vec<Permission>,
+}
+
+#[derive(Clone, Debug)]
+pub enum Permission {
+    ReadChat,
+    WriteChat,
+    ModifyStream,
+    AccessAdmin,
+    ControlBot,
+}
+
+#[derive(Debug)]
+pub enum SecurityError {
+    TooManyAttempts,
+    SessionExpired,
+    InsufficientTrustScore,
+    UnauthorizedAccess,
+    InvalidCredentials,
+}
+
+impl std::error::Error for SecurityError {}
+
+impl std::fmt::Display for SecurityError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SecurityError::TooManyAttempts => write!(f, "Too many authentication attempts"),
+            SecurityError::SessionExpired => write!(f, "Session has expired"),
+            SecurityError::InsufficientTrustScore => write!(f, "Insufficient trust score"),
+            SecurityError::UnauthorizedAccess => write!(f, "Unauthorized access"),
+            SecurityError::InvalidCredentials => write!(f, "Invalid credentials"),
+        }
+    }
 }
 
 impl SecurityDefenseSystem {
-    pub fn new(voice_tx: mpsc::Sender<String>) -> (Self, broadcast::Receiver<Attack>) {
-        let (tx, rx) = broadcast::channel(100);
+    pub fn new() -> Self {
+        Self {
+            auth_attempts: HashMap::new(),
+            active_sessions: HashMap::new(),
+            max_auth_attempts: 3,
+            auth_timeout: Duration::from_secs(300),  // 5 minutes
+            session_timeout: Duration::from_secs(3600), // 1 hour
+        }
+    }
+
+    pub fn authenticate(&mut self, user_id: &str, credentials: &str) -> Result<String, SecurityError> {
+        // Check for too many attempts
+        if let Some((attempts, timestamp)) = self.auth_attempts.get(user_id) {
+            if *attempts >= self.max_auth_attempts && 
+               timestamp.elapsed() < self.auth_timeout {
+                return Err(SecurityError::TooManyAttempts);
+            }
+        }
+
+        // Verify credentials (implement your actual verification logic)
+        if !self.verify_credentials(credentials) {
+            self.record_failed_attempt(user_id);
+            return Err(SecurityError::InvalidCredentials);
+        }
+
+        // Generate session token and create session
+        let session_token = self.generate_session_token();
+        self.create_session(user_id, &session_token);
+
+        Ok(session_token)
+    }
+
+    pub fn verify_action(&mut self, session_token: &str, required_permission: Permission) -> Result<(), SecurityError> {
+        let session = self.active_sessions.get_mut(session_token)
+            .ok_or(SecurityError::UnauthorizedAccess)?;
+
+        // Verify session is still valid
+        if session.created_at.elapsed() > self.session_timeout {
+            self.active_sessions.remove(session_token);
+            return Err(SecurityError::SessionExpired);
+        }
+
+        // Check trust score
+        if session.trust_score < 0.7 {
+            return Err(SecurityError::InsufficientTrustScore);
+        }
+
+        // Verify permissions
+        if !session.permissions.contains(&required_permission) {
+            return Err(SecurityError::UnauthorizedAccess);
+        }
+
+        // Update last verified time
+        session.last_verified = Instant::now();
+        Ok(())
+    }
+
+    pub fn revoke_session(&mut self, session_token: &str) {
+        self.active_sessions.remove(session_token);
+    }
+
+    fn record_failed_attempt(&mut self, user_id: &str) {
+        let entry = self.auth_attempts
+            .entry(user_id.to_string())
+            .or_insert((0, Instant::now()));
         
-        let taunts = vec![
-            "Ha! Get wrecked! Your attack is as weak as your coding skills! 💅".to_string(),
-            "Nice try bestie, but I'm built different! 💁‍♀️".to_string(),
-            "Aww, that's cute. You thought you could hack me? *giggles in cybersecurity* ✨".to_string(),
-            "Sorry not sorry! Your attack just got UwU blocked! 🛡️".to_string(),
-            "Is that all you got? I've seen better attacks in tutorial mode! 😏".to_string(),
-            "Thanks for the free penetration test! But you failed bestie~ 💕".to_string(),
-            "Imagine trying to DDoS in 2024! Couldn't be me! 💅✨".to_string(),
-            "Your attack was blocked faster than you can say 'UwU'! 🎀".to_string(),
-        ];
-
-        (Self {
-            attack_history: Vec::new(),
-            blocked_ips: HashSet::new(),
-            event_sender: tx,
-            voice_tx,
-            taunts,
-        }, rx)
+        entry.0 += 1;
+        entry.1 = Instant::now();
     }
 
-    pub async fn handle_attack(&mut self, attack: Attack) -> Result<(), Box<dyn std::error::Error>> {
-        // Log the attack
-        self.attack_history.push(attack.clone());
-
-        // Block the IP
-        self.blocked_ips.insert(attack.source_ip.clone());
-
-        // Generate defense response
-        let response = self.generate_defense_response(&attack);
-
-        // Broadcast attack event
-        self.event_sender.send(attack.clone())?;
-
-        // Send taunt message to stream
-        let taunt = self.get_random_taunt();
-        self.voice_tx.send(taunt).await?;
-
-        // Apply countermeasures
-        self.apply_countermeasures(&attack).await?;
-
-        Ok(())
+    fn verify_credentials(&self, credentials: &str) -> bool {
+        // Implement actual credential verification
+        // This is a placeholder - replace with actual secure verification
+        !credentials.is_empty()
     }
 
-    fn generate_defense_response(&self, attack: &Attack) -> DefenseResponse {
-        let (message, countermeasure) = match attack.attack_type {
-            AttackType::DDoS => (
-                "DDoS attack detected and blocked!".to_string(),
-                "Activating traffic filtering and rate limiting".to_string(),
-            ),
-            AttackType::BruteForce => (
-                "Brute force attack blocked!".to_string(),
-                "Implementing adaptive authentication delay".to_string(),
-            ),
-            AttackType::SQLInjection => (
-                "SQL Injection attempt detected and blocked!".to_string(),
-                "Sanitizing inputs and strengthening query validation".to_string(),
-            ),
-            AttackType::XSS => (
-                "Cross-site scripting attempt blocked!".to_string(),
-                "Enforcing content security policy".to_string(),
-            ),
-            AttackType::BotAttack => (
-                "Bot attack detected and blocked!".to_string(),
-                "Implementing advanced CAPTCHA and rate limiting".to_string(),
-            ),
-            AttackType::PacketFlood => (
-                "Packet flood attack blocked!".to_string(),
-                "Activating packet filtering and traffic shaping".to_string(),
-            ),
+    fn generate_session_token(&self) -> String {
+        // Generate a secure random token
+        // This is a placeholder - implement proper secure token generation
+        let mut rng = thread_rng();
+        let token: u128 = rng.gen();
+        format!("session_{:x}", token)
+    }
+
+    fn create_session(&mut self, user_id: &str, session_token: &str) {
+        let session = SessionInfo {
+            created_at: Instant::now(),
+            last_verified: Instant::now(),
+            trust_score: 1.0,
+            permissions: vec![
+                Permission::ReadChat,
+                Permission::WriteChat,
+            ],
         };
+        self.active_sessions.insert(session_token.to_string(), session);
+    }
 
-        DefenseResponse {
-            message,
-            countermeasure,
-            taunt: self.get_random_taunt(),
+    pub fn adjust_trust_score(&mut self, session_token: &str, adjustment: f32) {
+        if let Some(session) = self.active_sessions.get_mut(session_token) {
+            session.trust_score = (session.trust_score + adjustment)
+                .max(0.0)
+                .min(1.0);
         }
     }
 
-    async fn apply_countermeasures(&mut self, attack: &Attack) -> Result<(), Box<dyn std::error::Error>> {
-        match attack.attack_type {
-            AttackType::DDoS => {
-                // Implement rate limiting
-                self.activate_ddos_protection(attack.source_ip.clone()).await?;
-            },
-            AttackType::BruteForce => {
-                // Implement authentication delay
-                self.activate_brute_force_protection(attack.source_ip.clone()).await?;
-            },
-            // Add other attack type handlers...
-        }
+    pub fn cleanup_expired_sessions(&mut self) {
+        self.active_sessions.retain(|_, session| {
+            session.created_at.elapsed() < self.session_timeout
+        });
+    }
+}
 
-        Ok(())
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_authentication_flow() {
+        let mut system = SecurityDefenseSystem::new();
+        
+        // Test successful authentication
+        let result = system.authenticate("user1", "valid_credentials");
+        assert!(result.is_ok());
+
+        // Test failed authentication
+        let result = system.authenticate("user2", "");
+        assert!(result.is_err());
     }
 
-    fn get_random_taunt(&self) -> String {
-        self.taunts[fastrand::usize(..self.taunts.len())].clone()
-    }
+    #[test]
+    fn test_session_verification() {
+        let mut system = SecurityDefenseSystem::new();
+        
+        // Create a valid session
+        let token = system.authenticate("user1", "valid_credentials").unwrap();
+        
+        // Test permission verification
+        let result = system.verify_action(&token, Permission::ReadChat);
+        assert!(result.is_ok());
 
-    async fn activate_ddos_protection(&mut self, ip: String) -> Result<(), Box<dyn std::error::Error>> {
-        // Implement DDoS protection logic
-        println!("Activating DDoS protection for IP: {}", ip);
-        // Add rate limiting, traffic filtering, etc.
-        Ok(())
-    }
-
-    async fn activate_brute_force_protection(&mut self, ip: String) -> Result<(), Box<dyn std::error::Error>> {
-        // Implement brute force protection logic
-        println!("Activating brute force protection for IP: {}", ip);
-        // Add authentication delay, account lockout, etc.
-        Ok(())
-    }
-
-    pub fn is_ip_blocked(&self, ip: &str) -> bool {
-        self.blocked_ips.contains(ip)
-    }
-
-    pub fn get_attack_history(&self) -> &[Attack] {
-        &self.attack_history
+        // Test invalid permission
+        let result = system.verify_action(&token, Permission::AccessAdmin);
+        assert!(result.is_err());
     }
 } 

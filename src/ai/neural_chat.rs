@@ -11,6 +11,7 @@ use image::{ImageBuffer, Rgba};
 use tokio::time::{interval, Duration};
 use std::path::PathBuf;
 use std::collections::HashMap;
+use crate::error::Result;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ChatContext {
@@ -383,18 +384,8 @@ pub struct TopologyConfig {
 }
 
 impl NeuralChat {
-    pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        let config = ConversationConfig::default();
-        let conversation_model = ConversationModel::new(config)?;
-        let sentiment_model = SentimentModel::new(Default::default())?;
-
-        Ok(Self {
-            conversation_model,
-            sentiment_model,
-            context_history: VecDeque::with_capacity(10),
-            max_context: 10,
-            db_connection: DatabaseConnection::new(Default::default()).await?,
-        })
+    pub fn new() -> Result<Self> {
+        Ok(Self)
     }
 
     pub async fn generate_response(&mut self, user: &str, message: &str) -> String {

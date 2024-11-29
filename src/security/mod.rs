@@ -1,7 +1,4 @@
-pub struct SecurityDefenseSystem;
+pub mod defense_system;
+pub mod vpn_manager;
 
-impl SecurityDefenseSystem {
-    pub fn new() -> Self {
-        Self
-    }
-} 
+pub use defense_system::{SecurityDefenseSystem, Permission, SecurityError}; 

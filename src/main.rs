@@ -14,8 +14,9 @@ use kamen_sparkle::{
     obs::controller::OBSController,
     safety::mod_system::ModSystem,
     security::{
-        defense_system::{SecurityDefenseSystem, Attack, AttackType},
-        knowledge_base::SecurityKnowledgeBase,
+        SecurityDefenseSystem,
+        Permission,
+        SecurityError,
     },
     stream::{
         interaction_handler::InteractionHandler,
@@ -23,10 +24,18 @@ use kamen_sparkle::{
         title_generator::TitleGenerator,
     },
     youtube::manager::YouTubeManager,
-    automation::task_manager::{TaskManager, AutomatedTask, TaskType, TaskPriority, TaskSchedule},
+    automation::{
+        TaskManager,
+        AutomatedTask,
+        TaskType,
+        TaskPriority,
+        TaskSchedule,
+        TaskStatus,
+    },
+    emotions::adapter::EmotionalAdapter,
 };
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
 use std::{
     collections::{HashMap, HashSet},
     sync::{
@@ -77,9 +86,7 @@ async fn main() -> Result<()> {
     ));
 
     // Initialize security components
-    let security_system = Arc::new(SecurityDefenseSystem::new(
-        SecurityKnowledgeBase::new().await?,
-    ));
+    let security_system = Arc::new(tokio::sync::Mutex::new(SecurityDefenseSystem::new()));
     let content_filter = Arc::new(ContentFilter::new());
     let mod_system = Arc::new(ModSystem::new(content_filter.clone()));
 
@@ -99,11 +106,14 @@ async fn main() -> Result<()> {
         name: "Daily Content Analysis".to_string(),
         description: "Analyze stream content and viewer engagement".to_string(),
         priority: TaskPriority::High,
-        schedule: TaskSchedule::Recurring(Duration::days(1)),
+        schedule: TaskSchedule::Daily,
         last_run: None,
-        next_run: Utc::now() + Duration::hours(1),
+        next_run: Utc::now() + chrono::Duration::hours(1),
         task_type: TaskType::DataAnalysis,
-        parameters: serde_json::json!({}),
+        parameters: serde_json::json!({
+            "analysis_type": "content",
+            "metrics": ["engagement", "sentiment"]
+        }),
         status: TaskStatus::Pending,
     }).await?;
 
@@ -125,13 +135,16 @@ async fn main() -> Result<()> {
                 handle_stream_event(event, &interaction_handler).await?;
             }
 
-            // Handle security events
-            Some(attack) = security_system.detect_attack() => {
-                handle_security_event(attack, &security_system).await?;
+            // Handle security events periodically
+            _ = tokio::time::interval(tokio::time::Duration::from_secs(300)).tick() => {
+                let session_token = "admin"; // This should come from your authentication system
+                if let Err(e) = handle_security_event(session_token, &security_system).await {
+                    error!("Security event handling failed: {}", e);
+                }
             }
 
             // Periodic maintenance
-            _ = tokio::time::interval(Duration::hours(1).to_std()?).tick() => {
+            _ = tokio::time::interval(tokio::time::Duration::from_secs(3600)).tick() => {
                 maintenance_scheduler.run_maintenance().await?;
             }
 
@@ -145,7 +158,7 @@ async fn main() -> Result<()> {
             }
 
             // Analyze task performance periodically
-            _ = tokio::time::interval(Duration::hours(24).to_std()?).tick() => {
+            _ = tokio::time::interval(tokio::time::Duration::from_secs(86400)).tick() => {
                 if let Ok(report) = task_manager.analyze_performance().await {
                     info!("Task performance report: {:?}", report);
                 }
@@ -175,15 +188,16 @@ async fn handle_stream_event(
 }
 
 async fn handle_security_event(
-    attack: Attack,
-    security: &Arc<SecurityDefenseSystem>,
+    session_token: &str,
+    security: &Arc<tokio::sync::Mutex<SecurityDefenseSystem>>,
 ) -> Result<()> {
-    match attack.attack_type {
-        AttackType::Spam => security.handle_spam_attack(attack).await?,
-        AttackType::Bot => security.handle_bot_attack(attack).await?,
-        AttackType::DDoS => security.handle_ddos_attack(attack).await?,
-        // Add other attack handlers as needed
-        _ => warn!("Unhandled attack type: {:?}", attack.attack_type),
-    }
+    let mut security = security.lock().await;
+    
+    // Verify the action has proper permissions
+    security.verify_action(session_token, Permission::AccessAdmin)?;
+    
+    // Clean up expired sessions periodically
+    security.cleanup_expired_sessions();
+    
     Ok(())
 }

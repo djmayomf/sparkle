@@ -1,33 +1,41 @@
-use thiserror::Error;
+use std::fmt;
+use crate::security::SecurityError;
 
-#[derive(Error, Debug)]
+#[derive(Debug)]
 pub enum AppError {
-    #[error("Database error: {0}")]
-    Database(#[from] sqlx::Error),
+    Security(SecurityError),
+    Database(String),
+    Network(String),
+    Task(String),
+    IO(std::io::Error),
+    Other(Box<dyn std::error::Error + Send + Sync>),
+}
 
-    #[error("Network error: {0}")]
-    Network(#[from] reqwest::Error),
+impl std::error::Error for AppError {}
 
-    #[error("Configuration error: {0}")]
-    Config(String),
+impl fmt::Display for AppError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AppError::Security(e) => write!(f, "Security error: {:?}", e),
+            AppError::Database(e) => write!(f, "Database error: {}", e),
+            AppError::Network(e) => write!(f, "Network error: {}", e),
+            AppError::Task(e) => write!(f, "Task error: {}", e),
+            AppError::IO(e) => write!(f, "IO error: {}", e),
+            AppError::Other(e) => write!(f, "Other error: {}", e),
+        }
+    }
+}
 
-    #[error("OBS error: {0}")]
-    OBS(String),
+impl From<SecurityError> for AppError {
+    fn from(err: SecurityError) -> Self {
+        AppError::Security(err)
+    }
+}
 
-    #[error("Voice processing error: {0}")]
-    Voice(String),
-
-    #[error("Neural chat error: {0}")]
-    NeuralChat(String),
-
-    #[error("Knowledge base error: {0}")]
-    KnowledgeBase(String),
-
-    #[error("IO error: {0}")]
-    IO(#[from] std::io::Error),
-
-    #[error("Serialization error: {0}")]
-    Serialization(#[from] serde_json::Error),
+impl From<std::io::Error> for AppError {
+    fn from(err: std::io::Error) -> Self {
+        AppError::IO(err)
+    }
 }
 
 pub type Result<T> = std::result::Result<T, AppError>; 
