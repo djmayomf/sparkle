@@ -10,6 +10,7 @@ use twitch::TwitchAPI;
 use chrono::{DateTime, Utc};
 use bevy::input::keyboard::KeyCode;
 use bevy::prelude::*;
+use std::collections::HashMap;
 
 struct StreamerInfo {
     username: String,
@@ -139,6 +140,85 @@ struct AnimationSettings {
     gesture_frequency: f32,
     scale_range: (f32, f32),
     movement_smoothness: f32,
+}
+
+#[derive(Debug, Clone)]
+struct EmotionalState {
+    happiness: f32,
+    energy: f32,
+    engagement: f32,
+    confidence: f32,
+}
+
+#[derive(Debug)]
+struct BehaviorContext {
+    recent_interactions: Vec<Interaction>,
+    emotional_state: EmotionalState,
+    attention_focus: AttentionPoint,
+    personality_traits: PersonalityTraits,
+}
+
+#[derive(Debug, Clone)]
+struct Interaction {
+    timestamp: DateTime<Utc>,
+    interaction_type: InteractionType,
+    emotional_impact: f32,
+}
+
+#[derive(Debug, Clone)]
+enum InteractionType {
+    ChatMessage(String),
+    ViewerReaction(String),
+    StreamEvent(String),
+    EnvironmentalChange(String),
+}
+
+#[derive(Debug, Clone)]
+struct AttentionPoint {
+    target: String,
+    intensity: f32,
+    duration: std::time::Duration,
+}
+
+#[derive(Debug, Clone)]
+struct PersonalityTraits {
+    extraversion: f32,
+    adaptability: f32,
+    empathy: f32,
+    creativity: f32,
+}
+
+#[derive(Debug, Clone)]
+struct CognitiveCapabilities {
+    iq_level: f32,                    // Base IQ score (140-180 range)
+    learning_rate: f32,               // Speed of knowledge acquisition
+    pattern_recognition: f32,         // Pattern analysis capability
+    problem_solving: f32,             // Complex problem-solving ability
+    memory_capacity: f32,             // Information retention and recall
+    processing_speed: f32,            // Mental processing velocity
+}
+
+#[derive(Debug, Clone)]
+struct CyberSecurityExpertise {
+    domains: HashMap<SecurityDomain, f32>,
+    certifications: Vec<String>,
+    threat_analysis_capability: f32,
+    incident_response_skill: f32,
+    zero_day_detection: f32,
+}
+
+#[derive(Debug, Hash, Eq, PartialEq, Clone)]
+enum SecurityDomain {
+    NetworkSecurity,
+    ApplicationSecurity,
+    CloudSecurity,
+    BlockchainSecurity,
+    AISecuritySystems,
+    QuantumCryptography,
+    ZeroTrustArchitecture,
+    AdvancedPenetrationTesting,
+    ThreatIntelligence,
+    IncidentResponse,
 }
 
 fn generate_text_rust() -> Result<String, RustBertError> {
@@ -836,11 +916,197 @@ fn model_scale_system(
     }
 }
 
-// Update the setup function
-fn setup(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
+// Add the neural behavior system
+fn neural_behavior_system(
+    time: Res<Time>,
+    mut query: Query<(&mut ModelAnimation, &mut Transform)>,
+    mut behavior_context: ResMut<BehaviorContext>,
+    animation_settings: Res<AnimationSettings>,
 ) {
+    // Update emotional state based on recent interactions
+    update_emotional_state(&mut behavior_context, time.delta_seconds());
+
+    for (mut animation, mut transform) in query.iter_mut() {
+        // Generate behavior based on emotional state and context
+        let behavior = generate_contextual_behavior(&behavior_context);
+        
+        // Apply the generated behavior
+        apply_emotional_behavior(
+            &mut transform,
+            &mut animation,
+            &behavior,
+            &behavior_context.emotional_state,
+            time.delta_seconds(),
+        );
+    }
+}
+
+fn update_emotional_state(context: &mut BehaviorContext, delta_time: f32) {
+    let mut emotional_state = &mut context.emotional_state;
+    
+    // Natural emotional decay
+    emotional_state.happiness = lerp(emotional_state.happiness, 0.5, 0.1 * delta_time);
+    emotional_state.energy = lerp(emotional_state.energy, 0.5, 0.05 * delta_time);
+    emotional_state.engagement = lerp(emotional_state.engagement, 0.3, 0.15 * delta_time);
+    
+    // Process recent interactions
+    for interaction in &context.recent_interactions {
+        apply_interaction_impact(emotional_state, interaction);
+    }
+    
+    // Clean up old interactions
+    context.recent_interactions.retain(|i| 
+        Utc::now().signed_duration_since(i.timestamp) < chrono::Duration::seconds(30)
+    );
+}
+
+fn generate_contextual_behavior(context: &BehaviorContext) -> Vec<AnimationState> {
+    let mut behaviors = Vec::new();
+    let emotional_state = &context.emotional_state;
+    let personality = &context.personality_traits;
+    
+    // Generate behaviors based on emotional state and personality
+    if emotional_state.happiness > 0.7 {
+        behaviors.push(AnimationState::Waving);
+    }
+    
+    if emotional_state.energy > 0.6 {
+        behaviors.push(AnimationState::Walking);
+    }
+    
+    if emotional_state.engagement > 0.5 {
+        behaviors.push(AnimationState::Talking);
+    }
+    
+    // Add personality-influenced behaviors
+    if personality.extraversion > 0.6 && rand::random::<f32>() < 0.3 {
+        behaviors.push(AnimationState::Reacting);
+    }
+    
+    behaviors
+}
+
+fn apply_emotional_behavior(
+    transform: &mut Transform,
+    animation: &mut ModelAnimation,
+    behaviors: &[AnimationState],
+    emotional_state: &EmotionalState,
+    delta_time: f32,
+) {
+    // Base movement influenced by emotional state
+    let movement_scale = emotional_state.energy * 0.5 + 0.5;
+    let rotation_scale = emotional_state.engagement * 0.3 + 0.7;
+    
+    // Apply emotional influences to movement
+    for behavior in behaviors {
+        match behavior {
+            AnimationState::Talking => {
+                let talk_intensity = emotional_state.engagement * 0.1;
+                let head_motion = (time_elapsed() * 8.0).sin() * talk_intensity;
+                transform.rotation *= Quat::from_rotation_y(head_motion);
+            },
+            AnimationState::Waving => {
+                let wave_intensity = emotional_state.happiness * 0.2;
+                let wave = (time_elapsed() * 5.0).sin() * wave_intensity;
+                transform.rotation *= Quat::from_rotation_z(wave);
+            },
+            AnimationState::Walking => {
+                let walk_speed = emotional_state.energy * movement_scale;
+                transform.translation.x += walk_speed * delta_time;
+            },
+            AnimationState::Reacting => {
+                let reaction_intensity = emotional_state.engagement * 0.15;
+                transform.scale = Vec3::splat(1.0 + reaction_intensity * (time_elapsed() * 3.0).sin());
+            },
+            _ => {}
+        }
+    }
+}
+
+// Add this system for advanced cognitive processing
+fn cognitive_processing_system(
+    mut behavior_context: ResMut<BehaviorContext>,
+    mut cognitive_capabilities: ResMut<CognitiveCapabilities>,
+    mut cyber_expertise: ResMut<CyberSecurityExpertise>,
+    time: Res<Time>,
+) {
+    // Continuous learning and adaptation
+    update_knowledge_base(&mut cognitive_capabilities, &mut cyber_expertise, time.delta_seconds());
+    
+    // Advanced threat analysis and pattern recognition
+    analyze_security_patterns(&mut cyber_expertise, &behavior_context);
+    
+    // Quantum-resistant security protocol generation
+    generate_security_protocols(&mut cyber_expertise);
+}
+
+fn update_knowledge_base(
+    cognitive: &mut CognitiveCapabilities,
+    cyber: &mut CyberSecurityExpertise,
+    delta_time: f32,
+) {
+    // Simulate continuous learning
+    let learning_factor = cognitive.learning_rate * delta_time;
+    
+    for (domain, expertise_level) in cyber.domains.iter_mut() {
+        match domain {
+            SecurityDomain::AISecuritySystems => {
+                *expertise_level += learning_factor * 1.5; // Accelerated AI security learning
+            },
+            SecurityDomain::QuantumCryptography => {
+                *expertise_level += learning_factor * 1.3; // Advanced quantum security
+            },
+            _ => {
+                *expertise_level += learning_factor;
+            }
+        }
+        *expertise_level = expertise_level.min(1.0); // Cap expertise at 100%
+    }
+}
+
+fn analyze_security_patterns(
+    cyber: &mut CyberSecurityExpertise,
+    context: &BehaviorContext,
+) {
+    // Advanced pattern recognition for threat detection
+    cyber.threat_analysis_capability *= 1.001; // Continuous improvement
+    
+    // Zero-day vulnerability detection
+    if cyber.zero_day_detection > 0.9 {
+        // Implement advanced vulnerability scanning
+        scan_for_vulnerabilities(cyber);
+    }
+}
+
+fn generate_security_protocols(cyber: &mut CyberSecurityExpertise) {
+    if cyber.domains.get(&SecurityDomain::QuantumCryptography).unwrap_or(&0.0) > 0.8 {
+        // Generate quantum-resistant encryption protocols
+        implement_quantum_resistant_protocols();
+    }
+}
+
+// Add these security-related helper functions
+fn scan_for_vulnerabilities(cyber: &CyberSecurityExpertise) {
+    // Implement advanced vulnerability scanning logic
+    let scan_effectiveness = cyber.threat_analysis_capability * cyber.zero_day_detection;
+    if scan_effectiveness > 0.85 {
+        // Perform deep security analysis
+        implement_security_measures();
+    }
+}
+
+fn implement_quantum_resistant_protocols() {
+    // Implement quantum-resistant security protocols
+    // This would be where you implement actual quantum-resistant algorithms
+}
+
+fn implement_security_measures() {
+    // Implement advanced security measures
+    // This would be where you implement actual security fixes
+}
+
+// Update the setup function to include advanced capabilities
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     // Camera setup
     commands.spawn(Camera3dBundle {
         transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
@@ -884,6 +1150,96 @@ fn setup(
         position: Vec3::new(0.0, 1.0, 0.0),  // Center of camera box
         dimensions: Vec3::new(4.0, 3.0, 2.0), // Width, height, depth
     });
+
+    // Add neural network resources
+    commands.insert_resource(BehaviorContext {
+        recent_interactions: Vec::new(),
+        emotional_state: EmotionalState {
+            happiness: 0.5,
+            energy: 0.7,
+            engagement: 0.6,
+            confidence: 0.5,
+        },
+        attention_focus: AttentionPoint {
+            target: "viewer".to_string(),
+            intensity: 0.5,
+            duration: std::time::Duration::from_secs(5),
+        },
+        personality_traits: PersonalityTraits {
+            extraversion: 0.6,
+            adaptability: 0.7,
+            empathy: 0.8,
+            creativity: 0.6,
+        },
+    });
+
+    // Initialize advanced cognitive capabilities
+    commands.insert_resource(CognitiveCapabilities {
+        iq_level: 175.0,              // Exceptional IQ level
+        learning_rate: 0.95,          // Very high learning rate
+        pattern_recognition: 0.98,     // Superior pattern recognition
+        problem_solving: 0.96,         // Advanced problem-solving
+        memory_capacity: 0.99,         // Exceptional memory
+        processing_speed: 0.97,        // Fast processing
+    });
+
+    // Initialize cybersecurity expertise
+    let mut security_domains = HashMap::new();
+    security_domains.insert(SecurityDomain::NetworkSecurity, 0.95);
+    security_domains.insert(SecurityDomain::ApplicationSecurity, 0.93);
+    security_domains.insert(SecurityDomain::CloudSecurity, 0.94);
+    security_domains.insert(SecurityDomain::BlockchainSecurity, 0.92);
+    security_domains.insert(SecurityDomain::AISecuritySystems, 0.96);
+    security_domains.insert(SecurityDomain::QuantumCryptography, 0.91);
+    security_domains.insert(SecurityDomain::ZeroTrustArchitecture, 0.94);
+    security_domains.insert(SecurityDomain::AdvancedPenetrationTesting, 0.95);
+    security_domains.insert(SecurityDomain::ThreatIntelligence, 0.93);
+    security_domains.insert(SecurityDomain::IncidentResponse, 0.94);
+
+    commands.insert_resource(CyberSecurityExpertise {
+        domains: security_domains,
+        certifications: vec![
+            "CISSP".to_string(),
+            "CISM".to_string(),
+            "OSCP".to_string(),
+            "CEH".to_string(),
+            "CompTIA Security+".to_string(),
+            "AWS Security Specialty".to_string(),
+            "Google Cloud Security".to_string(),
+            "Quantum Security Expert".to_string(),
+        ],
+        threat_analysis_capability: 0.95,
+        incident_response_skill: 0.94,
+        zero_day_detection: 0.92,
+    });
+}
+
+// Helper function for linear interpolation
+fn lerp(start: f32, end: f32, t: f32) -> f32 {
+    start + (end - start) * t.clamp(0.0, 1.0)
+}
+
+// Helper function for getting elapsed time
+fn time_elapsed() -> f32 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs_f32()
+}
+
+// Update your App setup in main
+fn main() {
+    App::new()
+        // ... existing systems ...
+        .add_systems(Update, (
+            auto_movement_system,
+            model_animation_system,
+            camera_box_system,
+            model_scale_system,
+            neural_behavior_system,
+            cognitive_processing_system, // Add the new cognitive system
+        ))
+        .run();
 }
 
 #[tokio::main]
@@ -950,4 +1306,149 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     select_and_raid(&api, &stream_info, &personality).await?;
 
     Ok(())
+}
+
+// Add these new types for explanation handling
+#[derive(Debug, Clone)]
+struct ExplanationStyle {
+    audience_level: AudienceLevel,
+    use_analogies: bool,
+    include_examples: bool,
+    tone: ExplanationTone,
+}
+
+#[derive(Debug, Clone)]
+enum AudienceLevel {
+    Child,
+    Senior,
+    NonTechnical,
+    Technical,
+    Expert,
+}
+
+#[derive(Debug, Clone)]
+enum ExplanationTone {
+    Friendly,
+    Educational,
+    Encouraging,
+    Professional,
+}
+
+// Add this function to generate friendly security explanations
+fn generate_friendly_security_explanation(
+    topic: &SecurityDomain,
+    audience: AudienceLevel,
+    cyber_expertise: &CyberSecurityExpertise,
+) -> String {
+    let base_explanation = match topic {
+        SecurityDomain::NetworkSecurity => {
+            match audience {
+                AudienceLevel::Child | AudienceLevel::Senior => {
+                    "Think of network security like having a special guard for your house. \
+                    Just like how we lock our doors and windows to keep safe, \
+                    network security helps protect our computers and phones from bad people \
+                    who might try to peek at our private things or cause trouble. \
+                    We use special digital locks and alarm systems to keep everything safe! 🏠🔒"
+                },
+                AudienceLevel::NonTechnical => {
+                    "Network security is like having a really smart security system for the internet. \
+                    It protects all the information traveling between computers, kind of like how \
+                    a mail carrier makes sure your packages arrive safely without being opened \
+                    by anyone else. We use special tools to check that only the right people \
+                    can access certain things online. 📨✨"
+                },
+                _ => {
+                    "Network security encompasses the practices and policies designed to protect \
+                    network infrastructure and data transmission. We implement multiple layers of \
+                    defense including firewalls, encryption, and access controls. 🛡️"
+                }
+            }
+        },
+        SecurityDomain::QuantumCryptography => {
+            match audience {
+                AudienceLevel::Child | AudienceLevel::Senior => {
+                    "Imagine you have a magical box that can only be opened by you and your friend. \
+                    If anyone else tries to peek inside, the box immediately changes what's inside! \
+                    That's kind of like quantum cryptography - it's a super special way to send \
+                    secret messages that nobody else can read. Even if they try to look, \
+                    they can't see the real message! ✨📦"
+                },
+                AudienceLevel::NonTechnical => {
+                    "Quantum cryptography is like having an unbreakable secret code that uses \
+                    the special rules of very tiny things (quantum physics). If anyone tries to \
+                    intercept the message, it automatically scrambles itself - kind of like \
+                    invisible ink that disappears if someone unauthorized tries to read it! 🔐"
+                },
+                _ => {
+                    "Quantum cryptography leverages quantum mechanical properties to create \
+                    theoretically unbreakable encryption. It uses quantum states of particles \
+                    to detect any unauthorized observation of the data. 🌟"
+                }
+            }
+        },
+        SecurityDomain::AISecuritySystems => {
+            match audience {
+                AudienceLevel::Child | AudienceLevel::Senior => {
+                    "Imagine having a super-smart helper that watches over your computer like \
+                    a friendly guard dog! It learns what normal activities look like and can \
+                    spot when something unusual is happening. If it sees anything suspicious, \
+                    it lets us know right away - just like how a dog barks to warn us! 🐕💻"
+                },
+                AudienceLevel::NonTechnical => {
+                    "AI security systems are like having a very intelligent security guard that \
+                    never gets tired and can watch millions of things at once. It learns from \
+                    patterns to spot unusual behavior and can respond much faster than humans. \
+                    Think of it as a digital immune system for your computer! 🤖"
+                },
+                _ => {
+                    "AI security systems utilize machine learning algorithms to detect and respond \
+                    to threats in real-time. They can identify patterns, anomalies, and potential \
+                    security breaches by analyzing vast amounts of data. 🎯"
+                }
+            }
+        },
+        // Add more domains as needed...
+    }.to_string();
+
+    // Add relevant emojis and friendly touches based on audience
+    add_friendly_touches(base_explanation, audience)
+}
+
+// Helper function to add friendly elements to explanations
+fn add_friendly_touches(mut explanation: String, audience: AudienceLevel) -> String {
+    match audience {
+        AudienceLevel::Child => {
+            explanation.push_str("\n\nDoes that help explain it? Feel free to ask more questions! 😊");
+        },
+        AudienceLevel::Senior => {
+            explanation.push_str("\n\nI hope that makes sense! Let me know if you'd like me to explain anything else. 💝");
+        },
+        AudienceLevel::NonTechnical => {
+            explanation.push_str("\n\nI can explain more about any part that interests you! 💫");
+        },
+        _ => {
+            explanation.push_str("\n\nWould you like to explore any specific aspect in more detail? 🔍");
+        }
+    }
+    explanation
+}
+
+// Add this to the cognitive processing system
+fn handle_security_question(
+    topic: SecurityDomain,
+    audience: AudienceLevel,
+    cyber_expertise: &CyberSecurityExpertise,
+    emotional_state: &EmotionalState,
+) -> String {
+    let base_explanation = generate_friendly_security_explanation(&topic, audience, cyber_expertise);
+    
+    // Adjust explanation based on emotional state
+    let empathy_level = emotional_state.engagement * 0.7 + emotional_state.happiness * 0.3;
+    
+    if empathy_level > 0.8 {
+        // Add extra encouraging elements for high empathy
+        format!("{}\n\nYou're asking great questions! Security can seem complicated, but we can break it down together! 💫", base_explanation)
+    } else {
+        base_explanation
+    }
 }
