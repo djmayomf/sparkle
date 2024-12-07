@@ -139,6 +139,79 @@ impl StreamAnnouncer {
             .color(0xFF0000) // Red color for live status
             .build()
     }
+
+    pub async fn announce_collaborator(&self, collaborator: &StreamerInfo) -> Result<String> {
+        let intro = self.create_collaborator_intro(collaborator).await?;
+        
+        // Post to chat and social media
+        tokio::try_join!(
+            self.discord_webhook.send_collab_announcement(&intro),
+            self.twitter_client.tweet(TwitterPost {
+                content: format!("🎉 Live now with {}! {}", collaborator.display_name, intro.twitter_format),
+                media: Some(collaborator.profile_image.clone()),
+                schedule: None,
+            })
+        )?;
+
+        Ok(intro.chat_format)
+    }
+
+    async fn create_collaborator_intro(&self, collaborator: &StreamerInfo) -> Result<CollaboratorIntro> {
+        // Get collaborator's recent achievements and specialties
+        let achievements = self.get_creator_highlights(collaborator).await?;
+        let specialties = self.get_creator_specialties(collaborator).await?;
+
+        // Format intro in Sean Evans style
+        let chat_format = format!(
+            "Today I'm joined by {}, {}. Known for {}, {} has {}. \
+            Welcome to the stream! ���",
+            collaborator.display_name,
+            specialties.primary_title,
+            specialties.known_for.join(" and "),
+            collaborator.display_name,
+            achievements.recent_highlight
+        );
+
+        let twitter_format = format!(
+            "Excited to collab with {}! {} 🎮✨",
+            collaborator.display_name,
+            specialties.short_bio
+        );
+
+        Ok(CollaboratorIntro {
+            chat_format,
+            twitter_format,
+            collaborator_info: collaborator.clone(),
+        })
+    }
+
+    async fn get_creator_highlights(&self, creator: &StreamerInfo) -> Result<CreatorHighlights> {
+        // Query recent achievements and milestones
+        let recent_stats = self.twitch_api.get_channel_stats(&creator.username).await?;
+        let achievements = self.achievement_tracker.get_recent(&creator.username).await?;
+
+        let recent_highlight = if let Some(achievement) = achievements.first() {
+            format!("recently {}", achievement)
+        } else {
+            format!("gained over {} followers in the past month", recent_stats.monthly_growth)
+        };
+
+        Ok(CreatorHighlights {
+            recent_highlight,
+            milestones: achievements,
+        })
+    }
+
+    async fn get_creator_specialties(&self, creator: &StreamerInfo) -> Result<CreatorSpecialties> {
+        // Analyze creator's content and specialties
+        let content_analysis = self.content_analyzer.analyze_creator(&creator.username).await?;
+        
+        Ok(CreatorSpecialties {
+            primary_title: content_analysis.primary_title,
+            known_for: content_analysis.top_content_types,
+            short_bio: content_analysis.brief_description,
+        })
+    }
 }
 
 impl BodyTrackingSystem {

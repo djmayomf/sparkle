@@ -2,6 +2,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use chrono::{DateTime, Utc};
+use crate::moderation::content_filter::{ContentFilter, MusicContentFilter};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TwitchConfig {
@@ -189,5 +190,62 @@ impl TwitchAPI {
         if let Some(handler) = self.event_handlers.get(event_type) {
             handler(data);
         }
+    }
+
+    pub async fn ensure_stream_compliance(&self) -> Result<(), Box<dyn std::error::Error>> {
+        // Check stream title and tags
+        let stream_info = self.get_stream_info().await?;
+        
+        // Verify stream title compliance
+        if !is_compliant_title(&stream_info.title) {
+            return Err("Stream title violates Twitch guidelines".into());
+        }
+
+        // Verify stream tags compliance
+        for tag in &stream_info.tags {
+            if !is_compliant_tag(tag) {
+                return Err(format!("Stream tag '{}' violates Twitch guidelines", tag).into());
+            }
+        }
+
+        // Check for DMCA music
+        if let Some(music_info) = self.get_current_music().await? {
+            if !is_dmca_safe_music(&music_info) {
+                return Err("Current music may violate DMCA guidelines".into());
+            }
+        }
+
+        Ok(())
+    }
+
+    fn is_compliant_title(title: &str) -> bool {
+        // Check against inappropriate content
+        !title.contains_inappropriate_content() &&
+        // Check against harmful content
+        !title.contains_harmful_content() &&
+        // Check length and formatting
+        title.len() <= 140 &&
+        // No excessive caps
+        !has_excessive_caps(title)
+    }
+
+    fn is_compliant_tag(tag: &str) -> bool {
+        // Check against inappropriate content
+        !tag.contains_inappropriate_content() &&
+        // Check against harmful content  
+        !tag.contains_harmful_content() &&
+        // Check length
+        tag.len() <= 25 &&
+        // No spaces or special characters
+        tag.chars().all(|c| c.is_alphanumeric() || c == '_')
+    }
+
+    fn is_dmca_safe_music(music_info: &MusicInfo) -> bool {
+        // Check if music is from approved sources
+        music_info.is_from_approved_source() ||
+        // Check if we have proper licenses
+        music_info.has_valid_license() ||
+        // Check if it's royalty free
+        music_info.is_royalty_free()
     }
 } 

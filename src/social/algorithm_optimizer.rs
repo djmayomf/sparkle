@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use tokio::sync::RwLock;
+use crate::moderation::content_filter::ContentFilter;
 
 #[derive(Debug, Clone)]
 pub struct AlgorithmOptimizer {
@@ -38,12 +39,24 @@ struct PostTimingOptimizer {
 
 impl AlgorithmOptimizer {
     pub async fn optimize_social_post(&self, post: &mut SocialPost) -> Result<OptimizedPost> {
+        // First check TOS compliance
+        if let Some(violation) = self.check_tos_compliance(&post.content).await? {
+            return Err(Error::TOSViolation(violation));
+        }
+
+        // Check DMCA compliance for any media
+        if let Some(media) = &post.media {
+            if let Some(violation) = self.check_dmca_compliance(media).await? {
+                return Err(Error::DMCAViolation(violation)); 
+            }
+        }
+
         // Analyze current trends
         let trending_topics = self.trend_analyzer.get_relevant_trends(&post.content).await?;
         
-        // Optimize hashtags
+        // Verify hashtags comply with guidelines
         let optimized_hashtags = self.hashtag_optimizer
-            .generate_optimal_hashtags(&post.content, &trending_topics)
+            .generate_compliant_hashtags(&post.content, &trending_topics)
             .await?;
         
         // Determine optimal posting time
@@ -81,9 +94,72 @@ impl AlgorithmOptimizer {
             platform_optimizations: platform_specific,
         })
     }
+
+    async fn check_tos_compliance(&self, content: &str) -> Result<Option<TOSViolation>> {
+        // Check against Twitch community guidelines
+        if content.contains_inappropriate_content() {
+            return Ok(Some(TOSViolation {
+                violation_type: ViolationType::NSFW,
+                description: "Content contains inappropriate material".to_string(),
+                timestamp: Utc::now(),
+                severity: Severity::High,
+            }));
+        }
+
+        // Check for harassment/hate speech
+        if content.contains_harmful_content() {
+            return Ok(Some(TOSViolation {
+                violation_type: ViolationType::Harassment, 
+                description: "Content contains harmful material".to_string(),
+                timestamp: Utc::now(),
+                severity: Severity::High,
+            }));
+        }
+
+        Ok(None)
+    }
+
+    async fn check_dmca_compliance(&self, media: &Media) -> Result<Option<DMCAViolation>> {
+        // Check for copyrighted music
+        if media.contains_copyrighted_music() {
+            return Ok(Some(DMCAViolation {
+                content_type: "Music".to_string(),
+                description: "Contains copyrighted music".to_string(),
+                timestamp: Utc::now(),
+            }));
+        }
+
+        // Check for copyrighted video content
+        if media.contains_copyrighted_video() {
+            return Ok(Some(DMCAViolation {
+                content_type: "Video".to_string(), 
+                description: "Contains copyrighted video content".to_string(),
+                timestamp: Utc::now(),
+            }));
+        }
+
+        Ok(None)
+    }
 }
 
 impl HashtagOptimizer {
+    async fn generate_compliant_hashtags(
+        &self,
+        content: &str,
+        trends: &[TrendingTopic],
+    ) -> Result<Vec<String>> {
+        let mut hashtags = self.generate_optimal_hashtags(content, trends).await?;
+        
+        // Filter out any non-compliant hashtags
+        hashtags.retain(|tag| {
+            !tag.contains_inappropriate_content() && 
+            !tag.contains_harmful_content() &&
+            !self.blacklisted_tags.contains(tag)
+        });
+
+        Ok(hashtags)
+    }
+
     async fn generate_optimal_hashtags(
         &self,
         content: &str,
