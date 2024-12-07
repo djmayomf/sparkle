@@ -39,3 +39,26 @@ impl From<std::io::Error> for AppError {
 }
 
 pub type Result<T> = std::result::Result<T, AppError>; 
+
+#[derive(Debug, thiserror::Error)]
+pub enum SystemError {
+    #[error("Personality core error: {0}")]
+    PersonalityError(String),
+    
+    #[error("Content creation error: {0}")]
+    ContentError(String),
+    
+    #[error("Stream orchestration error: {0}")]
+    OrchestrationError(String),
+    
+    #[error("VRChat integration error: {0}")]
+    VRChatError(String),
+    
+    #[error("Database error: {0}")]
+    DatabaseError(#[from] sqlx::Error),
+    
+    #[error("System synchronization error: {0}")]
+    SyncError(String),
+}
+
+pub type Result<T> = std::result::Result<T, SystemError>; 
