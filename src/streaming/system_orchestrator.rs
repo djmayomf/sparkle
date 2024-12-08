@@ -11,6 +11,7 @@ pub struct SystemOrchestrator {
     stream_domination: StreamDomination,
     competitive_mode: CompetitiveMode,
     performance_monitor: PerformanceMonitor,
+    game_event_queue: Vec<GameEvent>,
 }
 
 impl SystemOrchestrator {
@@ -129,5 +130,26 @@ impl SystemOrchestrator {
                 self.stream_domination.highlight_gaming_moments()
             );
         }
+    }
+
+    pub async fn integrate_game_systems(&mut self) -> Result<()> {
+        // Add game-specific optimization
+        self.optimize_stream_performance().await?;
+        
+        // Handle game events
+        if let Some(game_event) = self.game_event_queue.pop() {
+            match game_event {
+                GameEvent::HighlightPlay => {
+                    self.content_optimizer.highlight_gameplay().await?;
+                    self.viral_strategy.promote_highlight().await?;
+                },
+                GameEvent::TournamentMatch => {
+                    self.stream_domination.focus_competitive_content().await?;
+                },
+                // ... handle other game events
+            }
+        }
+        
+        Ok(())
     }
 } 

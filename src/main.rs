@@ -130,8 +130,15 @@ async fn setup_app_state() -> Result<AppState, Box<dyn std::error::Error>> {
 }
 
 fn setup_system(mut commands: Commands) {
-    // Initialize core systems
-    // Add camera, UI, etc.
+    // Initialize core systems with resource limits
+    commands.insert_resource(SystemResources {
+        max_memory_usage: 1024 * 1024 * 1024, // 1GB
+        max_cpu_usage: 0.75, // 75%
+        max_gpu_usage: 0.8,  // 80%
+    });
+    
+    // Initialize monitoring
+    commands.spawn(MonitoringSystem::default());
 }
 
 fn update_vtuber_system(
@@ -142,9 +149,19 @@ fn update_vtuber_system(
     let content_creator = app_state.content_creator.clone();
     
     tokio::spawn(async move {
-        if let Ok(personality) = personality.read().await {
-            // Update personality state and generate content
-            content_creator.generate_content(&personality).await;
+        match personality.read().await {
+            Ok(personality) => {
+                // Integrate game content with VTuber content
+                if let Err(e) = content_creator.generate_integrated_content(&personality).await {
+                    error!("Content generation error: {}", e);
+                }
+                
+                // Handle game-specific updates
+                if let Err(e) = personality.adapt_to_game_state().await {
+                    error!("Game adaptation error: {}", e);
+                }
+            }
+            Err(e) => error!("Failed to read personality state: {}", e)
         }
     });
 }
