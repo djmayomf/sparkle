@@ -23,6 +23,11 @@ use crate::vrchat::controller::VRChatController;
 use crate::autonomy::{DecisionEngine, AutonomousStreamManager, EmergencyHandler};
 use crate::social::collab_manager::CollabManager;
 use crate::social::relationship_tracker::RelationshipTracker;
+use crate::ai::core::SparkleCore;
+use crate::voice::system::VoiceSystem;
+use crate::model::system::ModelSystem;
+use crate::streaming::system::StreamManager;
+use crate::integration::controller::IntegrationController;
 
 struct StreamerInfo {
     username: String,
@@ -50,27 +55,25 @@ struct AppState {
     relationship_tracker: Arc<RelationshipTracker>,
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize environment
-    dotenv::dotenv().ok();
+async fn main() -> Result<()> {
+    // Initialize core systems
+    let core = SparkleCore::initialize().await?;
     
-    // Setup logging
-    env_logger::init();
+    // Create integration controller
+    let mut controller = IntegrationController::new(core).await?;
     
-    // Create application state
-    let app_state = setup_app_state().await?;
+    // Initialize subsystems
+    let voice_system = VoiceSystem::new(core.clone()).await?;
+    let model_system = ModelSystem::new().await?;
+    let stream_manager = StreamManager::new(core.clone()).await?;
     
-    // Initialize Bevy app
-    App::new()
-        .add_plugins(DefaultPlugins)
-        .insert_resource(app_state)
-        .add_systems(Startup, setup_system)
-        .add_systems(Update, (
-            update_vtuber_system,
-            handle_input_system,
-            update_streaming_system
-        ))
-        .run();
+    // Start all systems
+    tokio::try_join!(
+        controller.run_system(),
+        voice_system.start(),
+        model_system.start(),
+        stream_manager.start_stream()
+    )?;
 
     Ok(())
 }

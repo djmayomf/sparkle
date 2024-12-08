@@ -35,10 +35,10 @@ pub struct EmotionalState {
 
 #[derive(Debug, Clone)]
 pub struct EmotionalProcessor {
-    current_state: Arc<RwLock<EmotionalState>>,
-    emotional_memory: Arc<RwLock<EmotionalMemory>>,
-    personality_influence: PersonalityInfluence,
-    context_analyzer: ContextAnalyzer,
+    current_mood: Mood,
+    personality: Arc<RwLock<PersonalityCore>>,
+    expression_engine: ExpressionEngine,
+    mood_transitions: MoodTransitionManager,
 }
 
 #[derive(Debug, Clone)]
@@ -76,134 +76,41 @@ struct EmotionalAssociation {
 impl EmotionalProcessor {
     pub async fn new() -> Result<Self> {
         Ok(Self {
-            current_state: Arc::new(RwLock::new(EmotionalState::default())),
-            emotional_memory: Arc::new(RwLock::new(EmotionalMemory::new())),
-            personality_influence: PersonalityInfluence::default(),
-            context_analyzer: ContextAnalyzer::new(),
+            current_mood: Mood::Neutral,
+            personality: Arc::new(RwLock::new(PersonalityCore::default())),
+            expression_engine: ExpressionEngine::default(),
+            mood_transitions: MoodTransitionManager::default(),
         })
     }
 
-    pub async fn process_emotional_input(&self, input: &str, context: &Context) -> Result<EmotionalResponse> {
-        // Analyze input for emotional content
-        let sentiment = self.analyze_sentiment(input).await?;
-        let emotional_triggers = self.identify_emotional_triggers(input).await?;
+    pub async fn process_emotion(&mut self, trigger: EmotionalTrigger) -> Result<EmotionalResponse> {
+        // Calculate emotional response
+        let base_response = self.calculate_emotional_response(trigger).await?;
         
-        // Update emotional state based on input
-        let mut current_state = self.current_state.write().await;
-        self.update_emotional_state(&mut current_state, &sentiment, &emotional_triggers).await?;
-
-        // Generate appropriate emotional response
-        let response = self.generate_emotional_response(&current_state, context).await?;
-
-        // Learn from interaction
-        self.learn_from_interaction(input, &response, context).await?;
-
-        Ok(response)
+        // Apply personality filters
+        let personality = self.personality.read().await;
+        let filtered = personality.filter_emotional_response(base_response);
+        
+        // Generate natural transition
+        let transition = self.mood_transitions.create_transition(
+            self.current_mood,
+            filtered.target_mood
+        )?;
+        
+        // Apply transition
+        self.apply_emotional_transition(transition).await
     }
 
-    async fn analyze_sentiment(&self, input: &str) -> Result<Sentiment> {
-        // Implement sentiment analysis
+    async fn calculate_emotional_response(&self, trigger: EmotionalTrigger) -> Result<EmotionalResponse> {
+        // Implement emotional response calculation
         // Could use external AI models or rule-based analysis
         todo!()
     }
 
-    async fn identify_emotional_triggers(&self, input: &str) -> Result<Vec<EmotionalTrigger>> {
-        let mut triggers = Vec::new();
-        let mut memory = self.emotional_memory.write().await;
-
-        // Pattern matching for known triggers
-        for (trigger, association) in &memory.associations {
-            if input.contains(trigger) {
-                triggers.push(EmotionalTrigger {
-                    trigger: trigger.clone(),
-                    intensity: association.emotional_impact,
-                    context: None,
-                });
-            }
-        }
-
-        Ok(triggers)
-    }
-
-    async fn update_emotional_state(
-        &self,
-        state: &mut EmotionalState,
-        sentiment: &Sentiment,
-        triggers: &[EmotionalTrigger],
-    ) -> Result<()> {
-        // Apply personality influence
-        let personality_factor = self.personality_influence.calculate_influence();
-
-        // Update primary emotions
-        state.joy = (state.joy + sentiment.positivity * personality_factor).clamp(0.0, 1.0);
-        state.sadness = (state.sadness + sentiment.negativity * personality_factor).clamp(0.0, 1.0);
-        
-        // Process emotional triggers
-        for trigger in triggers {
-            self.process_trigger(state, trigger).await?;
-        }
-
-        // Update complex attributes
-        self.update_complex_attributes(state).await?;
-
-        Ok(())
-    }
-
-    async fn process_trigger(&self, state: &mut EmotionalState, trigger: &EmotionalTrigger) -> Result<()> {
-        // Apply trigger effects based on type and intensity
-        match trigger.context {
-            Some(Context::Social) => {
-                state.social_awareness += trigger.intensity * 0.1;
-                state.empathy_level += trigger.intensity * 0.05;
-            }
-            Some(Context::Conflict) => {
-                state.emotional_stability -= trigger.intensity * 0.1;
-                state.anger += trigger.intensity * 0.15;
-            }
-            // Add other context handlers
-            _ => {}
-        }
-
-        Ok(())
-    }
-
-    async fn generate_emotional_response(&self, state: &EmotionalState, context: &Context) -> Result<EmotionalResponse> {
-        let response_type = self.determine_response_type(state, context);
-        let intensity = self.calculate_response_intensity(state);
-        
-        Ok(EmotionalResponse {
-            primary_emotion: self.select_primary_emotion(state),
-            secondary_emotions: self.select_secondary_emotions(state),
-            intensity,
-            response_type,
-            adaptation_level: self.calculate_adaptation_level(state),
-        })
-    }
-
-    async fn learn_from_interaction(
-        &self,
-        input: &str,
-        response: &EmotionalResponse,
-        context: &Context,
-    ) -> Result<()> {
-        let mut memory = self.emotional_memory.write().await;
-        
-        // Record emotional event
-        memory.short_term.push(EmotionalEvent {
-            timestamp: chrono::Utc::now(),
-            trigger: input.to_string(),
-            response: self.current_state.read().await.clone(),
-            intensity: response.intensity,
-            duration: chrono::Duration::seconds(0),
-        });
-
-        // Update emotional patterns
-        self.update_emotional_patterns(&mut memory, input, response, context).await?;
-
-        // Strengthen or create new associations
-        self.update_emotional_associations(&mut memory, input, response).await?;
-
-        Ok(())
+    async fn apply_emotional_transition(&self, transition: EmotionalTransition) -> Result<EmotionalResponse> {
+        // Implement emotional transition application
+        // Could use external AI models or rule-based analysis
+        todo!()
     }
 }
 
