@@ -1,6 +1,8 @@
 use crate::memory::cache::MemoryCache;
 use std::collections::HashMap;
 use crate::gaming::knowledge_base::GameKnowledge;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 pub struct PersonalityCore {
     traits: PersonalityTraits,
@@ -8,6 +10,7 @@ pub struct PersonalityCore {
     stream_persona: StreamerPersona,
     interaction_style: InteractionStyle,
     memory: Arc<RwLock<MemoryCache>>,
+    game_knowledge: Arc<RwLock<GameKnowledge>>,
 }
 
 struct StreamerPersona {
@@ -29,36 +32,26 @@ impl PersonalityCore {
     pub async fn new() -> Self {
         Self {
             traits: PersonalityTraits::create_balanced_profile(),
-            social_awareness: SocialAwareness::new(0.95), // High drama avoidance
+            social_awareness: SocialAwareness::new(0.95),
             stream_persona: StreamerPersona::initialize_engaging_persona(),
             interaction_style: InteractionStyle::authentic_and_positive(),
             memory: Arc::new(RwLock::new(MemoryCache::new())),
+            game_knowledge: Arc::new(RwLock::new(GameKnowledge::new().await)),
         }
     }
 
-    pub async fn process_interaction(&self, input: &str) -> Response {
-        // Check for potentially controversial topics
-        if self.social_awareness.could_cause_drama(input) {
-            return self.generate_positive_deflection(input).await;
-        }
-
-        // Generate authentic but drama-free response
-        let response = self.stream_persona.generate_response(input);
+    pub async fn process_gaming_question(&self, input: &str) -> Response {
+        let game_knowledge = self.game_knowledge.read().await;
+        let response = game_knowledge.get_game_response(input).await;
         
-        // Apply content filtering
-        self.content_filters.sanitize_response(response)
-    }
-
-    async fn generate_positive_deflection(&self, input: &str) -> Response {
-        let mut response = Response::new();
+        // Apply streamer personality
+        let response = self.stream_persona.add_gaming_context(&response);
         
-        // Redirect to positive topics
-        response.content = self.stream_persona.redirect_to_positive_topic(input);
-        
-        // Add authentic but safe engagement
-        response.add_engagement(self.interaction_style.get_safe_engagement());
-        
-        response
+        // Ensure family-friendly
+        self.content_filters.sanitize_response(Response {
+            content: response,
+            context: ResponseContext::Gaming,
+        })
     }
 }
 
@@ -101,9 +94,9 @@ impl StreamerPersona {
 
     fn add_gaming_context(&self, response: &str) -> String {
         if response.contains("build") && response.contains("poe") {
-            format!("{} (not financial advice btw LOL) 💸", response)
+            format!("{} (builds change every league tho bestie, no cap) 💸", response)
         } else if response.contains("marvel") {
-            format!("{} (meta changes fast tho, no cap) ⚡", response)
+            format!("{} (meta changes fast tho fr fr) ⚡", response)
         } else {
             response.to_string()
         }

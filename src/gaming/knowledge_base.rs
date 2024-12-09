@@ -1,141 +1,78 @@
+use crate::games::{
+    MarvelRivalsTrainer, POE2Trainer, MTGAPlayer, 
+    ValorantTrainer, ApexTrainer, OverwatchTrainer,
+    LeaguePlayer, FortnitePlayer
+};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use chrono::{DateTime, Utc};
+use dashmap::DashMap;
+use crate::resource_management::ResourceManager;
 
 #[derive(Debug)]
 pub struct GameKnowledge {
-    marvel_rivals: MarvelRivalsInfo,
-    poe2: POE2Info,
-    current_game: CurrentGame,
+    games: DashMap<String, Arc<RwLock<dyn GameTrainer>>>,
+    cache: Arc<DashMap<String, CachedResponse>>,
+    resource_manager: Arc<ResourceManager>,
 }
 
-#[derive(Debug)]
-struct MarvelRivalsInfo {
-    heroes: HashMap<String, HeroInfo>,
-    mechanics: Vec<String>,
-    meta_tips: Vec<String>,
-    common_terms: HashMap<String, String>,
-}
-
-#[derive(Debug)]
-struct POE2Info {
-    classes: HashMap<String, ClassInfo>,
-    mechanics: Vec<String>,
-    build_tips: Vec<String>,
-    league_mechanics: Vec<String>,
+struct CachedResponse {
+    response: String,
+    expiry: std::time::Instant,
 }
 
 impl GameKnowledge {
-    pub fn new() -> Self {
-        Self {
-            marvel_rivals: MarvelRivalsInfo::init(),
-            poe2: POE2Info::init(),
-            current_game: CurrentGame::None,
-        }
+    pub async fn new(resource_manager: Arc<ResourceManager>) -> Self {
+        let mut knowledge = Self {
+            games: DashMap::new(),
+            cache: Arc::new(DashMap::new()),
+            resource_manager,
+        };
+
+        // Initialize game trainers
+        knowledge.init_trainers().await;
+
+        knowledge
     }
 
-    pub fn get_game_response(&self, context: &str) -> String {
-        match self.detect_game_context(context) {
-            GameContext::MarvelRivals => self.marvel_rivals.get_relevant_tip(context),
-            GameContext::POE2 => self.poe2.get_relevant_tip(context),
-            _ => "yo chat, which game should we talk about? Marvel Rivals or PoE2? Both are super poggers! 🎮".to_string()
-        }
+    async fn init_trainers(&mut self) {
+        // Initialize trainers with resource manager
+        self.games.insert("marvel_rivals".to_string(), 
+            Arc::new(RwLock::new(MarvelRivalsTrainer::new(self.resource_manager.clone()))));
+        // Add other games...
     }
-}
 
-impl MarvelRivalsInfo {
-    fn init() -> Self {
-        let mut heroes = HashMap::new();
-        heroes.insert("Iron Man".to_string(), HeroInfo {
-            role: "Damage".to_string(),
-            difficulty: "Medium".to_string(),
-            tips: vec![
-                "ngl bestie, you wanna keep your distance and spam those energy beams! 🚀",
-                "pro tip: your ultimate is perfect for zoning, fr fr ⚡",
-                "remember to use your repulsors to create space, they're kinda cracked 💫"
-            ].into_iter().map(String::from).collect()
-        });
+    pub async fn get_game_response(&self, context: &str) -> String {
+        // Check cache first
+        if let Some(cached) = self.check_cache(context) {
+            return cached;
+        }
+
+        // Generate new response
+        let response = self.generate_response(context).await;
         
-        Self {
-            heroes,
-            mechanics: vec![
-                "team synergy is key, no cap",
-                "objectives > kills, trust",
-                "positioning diff is huge",
-            ].into_iter().map(String::from).collect(),
-            meta_tips: vec![
-                "always group for objectives, they're literally free SR",
-                "counter-picking is lowkey OP in this game",
-                "vision control = free wins fr fr",
-            ].into_iter().map(String::from).collect(),
-            common_terms: {
-                let mut terms = HashMap::new();
-                terms.insert("SR".to_string(), "Skill Rating".to_string());
-                terms.insert("int".to_string(), "intentionally feeding".to_string());
-                terms.insert("diff".to_string(), "difference in skill".to_string());
-                terms
-            },
-        }
+        // Cache the response
+        self.cache_response(context, &response);
+        
+        response
     }
-}
 
-impl POE2Info {
-    fn init() -> Self {
-        let mut classes = HashMap::new();
-        classes.insert("Barbarian".to_string(), ClassInfo {
-            playstyle: "Melee DPS".to_string(),
-            difficulty: "Beginner-friendly".to_string(),
-            tips: vec![
-                "bestie, your rage generation is literally everything",
-                "no cap, Whirlwind build is kinda cracked rn",
-                "pro tip: always keep your defensive cooldowns ready, fr fr"
-            ].into_iter().map(String::from).collect()
+    fn check_cache(&self, context: &str) -> Option<String> {
+        if let Some(cached) = self.cache.get(context) {
+            if cached.expiry > std::time::Instant::now() {
+                return Some(cached.response.clone());
+            }
+            self.cache.remove(context);
+        }
+        None
+    }
+
+    fn cache_response(&self, context: &str, response: &str) {
+        self.cache.insert(context.to_string(), CachedResponse {
+            response: response.to_string(),
+            expiry: std::time::Instant::now() + std::time::Duration::from_secs(300),
         });
-
-        Self {
-            classes,
-            mechanics: vec![
-                "skill gem linking is crucial",
-                "flask management = free wins",
-                "resistance capping is non-negotiable",
-            ].into_iter().map(String::from).collect(),
-            build_tips: vec![
-                "ngl, life nodes are mandatory unless you're going ES",
-                "don't sleep on movement skills bestie",
-                "trading is lowkey the best way to gear up fast",
-            ].into_iter().map(String::from).collect(),
-            league_mechanics: vec![
-                "seasonal mechanics",
-                "endgame mapping",
-                "boss encounters",
-            ].into_iter().map(String::from).collect(),
-        }
     }
-
-    fn get_build_advice(&self, class: &str) -> String {
-        match class.to_lowercase().as_str() {
-            "barbarian" => "yo bestie, for Barb you def want to focus on rage generation and AoE clear. Stack life and resistances, it's literally free wins! 💪",
-            "druid" => "Druid builds are kinda cracked rn ngl. Focus on either shapeshifting or elemental, don't try to do both bestie! 🌿",
-            _ => "what class are you thinking of playing? I can help you theory craft something poggers! 🎮"
-        }.to_string()
-    }
-}
-
-#[derive(Debug)]
-enum GameContext {
-    MarvelRivals,
-    POE2,
-    Unknown,
-}
-
-#[derive(Debug)]
-struct HeroInfo {
-    role: String,
-    difficulty: String,
-    tips: Vec<String>,
-}
-
-#[derive(Debug)]
-struct ClassInfo {
-    playstyle: String,
-    difficulty: String,
-    tips: Vec<String>,
 } 

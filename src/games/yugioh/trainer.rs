@@ -48,16 +48,24 @@ pub enum CardRarity {
     UltraRare,
 }
 
+#[derive(Debug)]
 pub struct YugiohTrainer {
     decks: HashMap<String, DeckArchetype>,
     current_deck: Option<String>,
     duel_stats: DuelStats,
     known_combos: Vec<String>,
-    meta_knowledge: HashMap<String, Vec<String>>, // matchup -> counter plays
+    meta_knowledge: HashMap<String, Vec<String>>,
 }
 
 impl YugiohTrainer {
     pub fn new() -> Self {
+        let mut crafting_points = HashMap::new();
+        // Initialize crafting points for each rarity
+        crafting_points.insert(CardRarity::Normal, 0);
+        crafting_points.insert(CardRarity::Rare, 0);
+        crafting_points.insert(CardRarity::SuperRare, 0);
+        crafting_points.insert(CardRarity::UltraRare, 0);
+
         Self {
             decks: Self::init_meta_decks(),
             current_deck: None,
@@ -67,7 +75,7 @@ impl YugiohTrainer {
                 rank: "Rookie".to_string(),
                 favorite_deck: String::new(),
                 gems_earned: 0,
-                crafting_points: HashMap::new(),
+                crafting_points,
             },
             known_combos: Vec::new(),
             meta_knowledge: HashMap::new(),
@@ -104,7 +112,7 @@ impl YugiohTrainer {
         decks
     }
 
-    pub async fn purchase_packs(&mut self, pack_type: &str, amount: u32) -> Result<Vec<String>, String> {
+    pub fn purchase_packs(&mut self, pack_type: &str, amount: u32) -> Result<Vec<String>, String> {
         if self.duel_stats.gems_earned < amount * 100 {
             return Err("Insufficient gems! Complete more duels to earn gems.".to_string());
         }
@@ -139,7 +147,7 @@ impl YugiohTrainer {
         }
     }
 
-    pub async fn learn_deck(&mut self, deck_name: &str) -> Result<String, String> {
+    pub fn learn_deck(&mut self, deck_name: &str) -> Result<String, String> {
         if let Some(deck) = self.decks.get(deck_name) {
             self.current_deck = Some(deck_name.to_string());
             self.known_combos = deck.combo_lines.clone();
@@ -151,7 +159,7 @@ impl YugiohTrainer {
         }
     }
 
-    pub async fn practice_combo(&mut self, combo_name: &str) -> Result<(), String> {
+    pub fn practice_combo(&mut self, combo_name: &str) -> Result<(), String> {
         if let Some(deck_name) = &self.current_deck {
             if let Some(deck) = self.decks.get(deck_name) {
                 if deck.combo_lines.iter().any(|combo| combo.contains(combo_name)) {
@@ -165,7 +173,7 @@ impl YugiohTrainer {
         Err("Combo not found or no deck selected".to_string())
     }
 
-    pub async fn record_duel_result(&mut self, won: bool, opponent_deck: &str) -> Result<(), String> {
+    pub fn record_duel_result(&mut self, won: bool, opponent_deck: &str) -> Result<(), String> {
         if won {
             self.duel_stats.wins += 1;
             self.duel_stats.gems_earned += 50; // Bonus gems for winning
