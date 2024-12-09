@@ -60,6 +60,25 @@ lazy_static! {
         
         map
     };
+
+    // Update English patterns with more gamer-friendly alternatives
+    static ref REPLACEMENT_PATTERNS: HashMap<Lang, HashMap<String, String>> = {
+        let mut map = HashMap::new();
+        
+        // English replacements
+        map.insert(Lang::Eng, {
+            let mut replacements = HashMap::new();
+            replacements.insert("nsfw".to_string(), "family-friendly".to_string());
+            replacements.insert("hate".to_string(), "not pog".to_string());
+            replacements.insert("stupid".to_string(), "pepega".to_string());
+            replacements.insert("bad".to_string(), "not poggers".to_string());
+            replacements.insert("angry".to_string(), "malding".to_string());
+            replacements.insert("fight".to_string(), "1v1".to_string());
+            replacements
+        });
+        
+        map
+    };
 }
 
 pub struct ContentFilter {
@@ -150,6 +169,23 @@ impl ContentFilter {
             },
             pattern_matches: patterns,
         }
+    }
+
+    fn make_streamer_friendly(&self, content: &str, lang: Lang) -> String {
+        let mut result = content.to_string();
+        
+        if let Some(replacements) = REPLACEMENT_PATTERNS.get(&lang) {
+            for (inappropriate, friendly) in replacements.iter() {
+                result = result.replace(inappropriate, friendly);
+            }
+        }
+        
+        // Add streamer flair
+        if !result.contains("!") && !result.contains("?") {
+            result += " tbh";
+        }
+        
+        result
     }
 }
 

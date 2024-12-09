@@ -1,5 +1,6 @@
 use crate::memory::cache::MemoryCache;
 use std::collections::HashMap;
+use crate::gaming::knowledge_base::GameKnowledge;
 
 pub struct PersonalityCore {
     traits: PersonalityTraits,
@@ -66,7 +67,7 @@ impl StreamerPersona {
         Self {
             authenticity_level: 0.9,
             positivity_bias: 0.85,
-            humor_style: HumorStyle::Wholesome,
+            humor_style: HumorStyle::GamerCasual,
             engagement_patterns: EngagementPatterns::new_inclusive(),
             content_filters: ContentFilters::new_family_friendly(),
         }
@@ -74,14 +75,38 @@ impl StreamerPersona {
 
     fn redirect_to_positive_topic(&self, input: &str) -> String {
         let positive_topics = vec![
-            "Let's focus on having fun together!",
-            "How about we talk about some awesome games?",
-            "You know what's really exciting?",
-            "That reminds me of something cool...",
+            "yo chat, let's keep the vibes high key wholesome! ✨",
+            "chat, you're being kinda sus rn, let's talk about some poggers gameplay instead! 🎮",
+            "ngl bestie, that's not it - let's focus on the W's! 🏆",
+            "fr fr, let's keep it chill and talk about something epic! 💫",
         ];
         
-        // Choose appropriate redirection based on context
         self.select_contextual_redirection(input, &positive_topics)
+    }
+
+    fn handle_game_question(&self, input: &str) -> String {
+        let game_knowledge = GameKnowledge::new();
+        
+        // Detect game-specific questions
+        if input.contains("marvel") || input.contains("rivals") {
+            let response = game_knowledge.marvel_rivals.get_relevant_tip(input);
+            format!("{} {}", response, "hope this helps bestie! 🎮")
+        } else if input.contains("poe") || input.contains("path of exile") {
+            let response = game_knowledge.poe2.get_relevant_tip(input);
+            format!("{} {}", response, "lmk if you need more tips! 💫")
+        } else {
+            "chat, what game do you wanna know about? Marvel Rivals and PoE2 are both super poggers rn! 🎮".to_string()
+        }
+    }
+
+    fn add_gaming_context(&self, response: &str) -> String {
+        if response.contains("build") && response.contains("poe") {
+            format!("{} (not financial advice btw LOL) 💸", response)
+        } else if response.contains("marvel") {
+            format!("{} (meta changes fast tho, no cap) ⚡", response)
+        } else {
+            response.to_string()
+        }
     }
 }
 
@@ -115,22 +140,30 @@ impl SocialAwareness {
 
 impl ContentFilters {
     fn sanitize_response(&self, mut response: Response) -> Response {
-        // Remove any potentially controversial content
-        response.content = self.remove_controversial_content(&response.content);
-        
-        // Ensure family-friendly language
+        // Make it family-friendly while keeping gamer personality
         response.content = self.ensure_family_friendly(&response.content);
         
-        // Add positivity if needed
-        if !self.is_positive_enough(&response.content) {
-            response.content = self.add_positivity(&response.content);
+        // Add Gen Z/gamer flair if missing
+        if !self.has_gamer_flair(&response.content) {
+            response.content = self.add_gamer_flair(&response.content);
         }
         
         response
     }
 
-    fn is_positive_enough(&self, content: &str) -> bool {
-        let sentiment_score = self.analyze_sentiment(content);
-        sentiment_score > 0.6 // Ensure generally positive tone
+    fn add_gamer_flair(&self, content: &str) -> String {
+        let mut result = content.to_string();
+        
+        // Add gaming/streaming terms naturally
+        if !result.contains(|c: char| c.is_emoji()) {
+            result += " 🎮";
+        }
+        
+        // Add Gen Z/gamer expressions if appropriate
+        if !result.contains(["fr", "ngl", "tbh", "pog"].iter().any(|&term| result.contains(term))) {
+            result = format!("ngl, {}", result);
+        }
+        
+        result
     }
 } 
