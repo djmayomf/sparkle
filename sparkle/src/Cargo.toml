@@ -1,0 +1,72 @@
+[package]
+name = "sparkle"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description.workspace = true
+
+[[bin]]
+name = "sparkle"
+path = "main.rs"
+
+[lib]
+name = "sparkle"
+path = "lib.rs"
+
+[dependencies]
+# Async Runtime and Networking
+tokio.workspace = true
+reqwest.workspace = true
+async-trait.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+
+# Error Handling
+anyhow.workspace = true
+thiserror.workspace = true
+
+# AI and Machine Learning
+rust-bert.workspace = true
+tch.workspace = true
+pyo3.workspace = true
+
+# Image Processing and Computer Vision
+image.workspace = true
+screenshots.workspace = true
+show-image.workspace = true
+imageproc.workspace = true
+
+# Input/Output Control
+enigo.workspace = true
+device_query.workspace = true
+rdev.workspace = true
+winapi.workspace = true
+
+# Utilities
+dotenv.workspace = true
+rand.workspace = true
+log.workspace = true
+env_logger.workspace = true
+chrono.workspace = true
+url.workspace = true
+regex.workspace = true
+fastrand.workspace = true
+sqlx.workspace = true
+unicode-segmentation.workspace = true
+
+# Web Interaction
+twitch-irc.workspace = true
+scraper.workspace = true
+websocket.workspace = true
+
+# Process Management
+sysinfo.workspace = true
+memory-rs.workspace = true
+process-memory.workspace = true
+
+# GUI (Optional)
+egui.workspace = true
+eframe.workspace = true
