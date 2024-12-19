@@ -1,0 +1,20 @@
+[package]
+name = "sparkle"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description.workspace = true
+
+[dependencies]
+# Core Dependencies
+tokio = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+dotenv = { workspace = true }
+
+# Process Management
+sysinfo = { workspace = true }
+memory-rs = { workspace = true }
+process-memory = { workspace = true }
