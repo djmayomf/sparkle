@@ -1,0 +1,10 @@
+[input]
+keyboard_delay = 50
+mouse_delay = 20
+
+[twitch]
+channel = "your_channel"
+oauth_token = "your_token"
+
+[image]
+screenshot_interval = 1000 
